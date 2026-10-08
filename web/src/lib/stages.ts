@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { getLlmClient, hasLlmCredentials, llmAuthErrorHint, llmModel } from "./llm";
 import { ProtocolSchema } from "./protocolSchema";
 import {
   GUIDANCE_STAGE,
@@ -15,8 +16,8 @@ import {
 } from "./prompts";
 import { saveReading } from "./store";
 import type { Reading, StageName, Status } from "./types";
+import { STATUS_ORDER } from "./types";
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
 let client: Anthropic | null = null;
 
 /** Status each stage requires before it may run, and the status it produces. */
@@ -27,7 +28,17 @@ const GATES: Record<StageName, { requires: Status[]; produces: Status }> = {
   protocol: { requires: ["guidance", "protocol"], produces: "protocol" },
 };
 
-const ORDER: Status[] = ["chart", "confirmed", "past_check", "scored", "reports", "guidance", "protocol"];
+const STAGE_OUTPUT: Record<StageName, keyof Reading["outputs"]> = {
+  past: "past",
+  reports: "reports",
+  guidance: "guidance",
+  protocol: "protocol",
+};
+
+/** True when this stage already has a stored output (reuse; do not call Claude). */
+export function stageAlreadyDone(r: Reading, stage: StageName): boolean {
+  return r.outputs[STAGE_OUTPUT[stage]] != null;
+}
 
 export function gateError(r: Reading, stage: StageName): string | null {
   const g = GATES[stage];
@@ -38,7 +49,7 @@ export function gateError(r: Reading, stage: StageName): string | null {
     reports: "Score every past-check claim first (Hard Stop 2).",
     guidance: "Generate Reports 3 to 6 first.",
     protocol: "Generate the plain-language guidance first.",
-  }[stage] + (ORDER.indexOf(r.status) > ORDER.indexOf(g.produces) ? " Later stages already exist; reset them to regenerate this one." : "");
+  }[stage] + (STATUS_ORDER.indexOf(r.status) > STATUS_ORDER.indexOf(g.produces) ? " Later stages already exist; reset them to regenerate this one." : "");
 }
 
 /** Antardashas from the current one through roughly ten years ahead. */
@@ -102,12 +113,14 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
   if (running.has(r.id)) throw new Error(`Already generating ${running.get(r.id)} for this reading.`);
   running.set(r.id, stage);
   try {
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN)
-      throw new Error("No Anthropic API key. Put ANTHROPIC_API_KEY in jyotish/web/.env.local and restart the dev server.");
-    client ??= new Anthropic();
+    if (!hasLlmCredentials())
+      throw new Error(
+        "No LLM key. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY in web/.env.local and restart the dev server.",
+      );
+    client ??= getLlmClient();
     const isProtocol = stage === "protocol";
     const stream = client.beta.messages.stream({
-      model: MODEL,
+      model: llmModel(),
       max_tokens: 64000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
@@ -160,7 +173,7 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
   } catch (err) {
     const message =
       err instanceof Anthropic.AuthenticationError
-        ? "Anthropic API key missing or invalid. Set ANTHROPIC_API_KEY in web/.env.local."
+        ? llmAuthErrorHint()
         : err instanceof Anthropic.RateLimitError
           ? "Rate limited by the API. Wait a minute and retry."
           : err instanceof Anthropic.APIError

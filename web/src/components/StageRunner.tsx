@@ -1,10 +1,10 @@
 "use client";
 import { useRef, useState } from "react";
 import type { StageName, Status } from "@/lib/types";
+import { STATUS_ORDER } from "@/lib/types";
 import { api, runStage, type LoadedReading } from "./api";
 import Markdown from "./Markdown";
 
-const ORDER: Status[] = ["chart", "confirmed", "past_check", "scored", "reports", "guidance", "protocol"];
 /** Status to reset to before regenerating a stage, and the status the stage produces. */
 const SHAPE: Record<StageName, { resetTo: Status; produces: Status }> = {
   past: { resetTo: "confirmed", produces: "past_check" },
@@ -43,7 +43,7 @@ export default function StageRunner({
 
   const busyElsewhere = !!r.generating && !running;
   const has = !!output;
-  const downstream = ORDER.indexOf(r.status) > ORDER.indexOf(SHAPE[stage].produces);
+  const downstream = STATUS_ORDER.indexOf(r.status) > STATUS_ORDER.indexOf(SHAPE[stage].produces);
 
   function flush() {
     frame.current = 0;
@@ -56,8 +56,9 @@ export default function StageRunner({
 
   async function go() {
     setErr(null);
-    if (downstream) {
-      if (!confirm("Regenerating this discards every later stage. Continue?")) return;
+    // Always clear this stage (and anything after) before a fresh Claude call so the server does not reuse stored output.
+    if (has) {
+      if (downstream && !confirm("Regenerating this discards every later stage. Continue?")) return;
       try {
         onReading(await api.patch(r.id, { action: "reset", to: SHAPE[stage].resetTo }));
       } catch (e) {

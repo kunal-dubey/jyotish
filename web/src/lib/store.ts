@@ -1,39 +1,42 @@
 import "server-only";
-import { promises as fs } from "fs";
-import path from "path";
 import type { Reading } from "./types";
+import { getDb } from "./db";
 
-const DIR = path.join(process.cwd(), "data", "readings");
+type ReadingDoc = Reading & { _id?: unknown };
 
-function file(id: string) {
-  if (!/^[a-z0-9-]+$/i.test(id)) throw new Error("bad id");
-  return path.join(DIR, `${id}.json`);
+function strip(doc: ReadingDoc | null): Reading | null {
+  if (!doc) return null;
+  const { _id: _, ...r } = doc;
+  return r as Reading;
 }
 
-export async function listReadings(): Promise<Reading[]> {
-  await fs.mkdir(DIR, { recursive: true });
-  const names = (await fs.readdir(DIR)).filter((n) => n.endsWith(".json"));
-  const all = await Promise.all(names.map((n) => fs.readFile(path.join(DIR, n), "utf8").then(JSON.parse)));
-  return (all as Reading[]).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+export async function listReadings(userId: string): Promise<Reading[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection<ReadingDoc>("readings")
+    .find({ userId })
+    .sort({ updatedAt: -1 })
+    .toArray();
+  return docs.map((d) => strip(d)!);
 }
 
-export async function getReading(id: string): Promise<Reading | null> {
-  try {
-    return JSON.parse(await fs.readFile(file(id), "utf8"));
-  } catch {
-    return null;
-  }
+export async function getReading(id: string, userId: string): Promise<Reading | null> {
+  if (!/^[a-z0-9-]+$/i.test(id)) return null;
+  const db = await getDb();
+  return strip(await db.collection<ReadingDoc>("readings").findOne({ id, userId }));
 }
 
 export async function saveReading(r: Reading): Promise<Reading> {
-  await fs.mkdir(DIR, { recursive: true });
   r.updatedAt = new Date().toISOString();
-  const tmp = file(r.id) + ".tmp";
-  await fs.writeFile(tmp, JSON.stringify(r, null, 2));
-  await fs.rename(tmp, file(r.id));
+  const db = await getDb();
+  const { _id: _, ...doc } = r as ReadingDoc;
+  await db.collection<ReadingDoc>("readings").replaceOne({ id: r.id, userId: r.userId }, doc, { upsert: true });
   return r;
 }
 
-export async function deleteReading(id: string) {
-  await fs.rm(file(id), { force: true });
+export async function deleteReading(id: string, userId: string): Promise<boolean> {
+  if (!/^[a-z0-9-]+$/i.test(id)) return false;
+  const db = await getDb();
+  const res = await db.collection("readings").deleteOne({ id, userId });
+  return res.deletedCount > 0;
 }

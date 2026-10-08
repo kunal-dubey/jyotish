@@ -115,8 +115,19 @@ export type Status = "chart" | "confirmed" | "past_check" | "scored" | "reports"
 
 export type StageName = "past" | "reports" | "guidance" | "protocol";
 
+export const STATUS_ORDER: Status[] = [
+  "chart",
+  "confirmed",
+  "past_check",
+  "scored",
+  "reports",
+  "guidance",
+  "protocol",
+];
+
 export type Reading = {
   id: string;
+  userId: string;
   createdAt: string;
   updatedAt: string;
   intake: Intake;

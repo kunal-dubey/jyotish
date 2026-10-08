@@ -1,15 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import type { Status } from "@/lib/types";
+import { STATUS_ORDER } from "@/lib/types";
 import { api, type LoadedReading } from "./api";
-import { go } from "./nav";
 import ChartPanel from "./ChartPanel";
 import ScorePanel from "./ScorePanel";
 import StageRunner from "./StageRunner";
 
 type Section = "chart" | "past" | "reports" | "guidance" | "protocol";
-const ORDER: Status[] = ["chart", "confirmed", "past_check", "scored", "reports", "guidance", "protocol"];
-const at = (s: Status) => ORDER.indexOf(s);
+const at = (s: Status) => STATUS_ORDER.indexOf(s);
 
 const SECTIONS: { id: Section; n: string; title: string; sub: string; doneAt: Status; openAt: Status }[] = [
   { id: "chart", n: "1", title: "The chart", sub: "Computation and verification", doneAt: "confirmed", openAt: "chart" },
@@ -64,7 +63,7 @@ export default function ReadingView({ id }: { id: string }) {
   async function remove() {
     if (!confirm(`Delete the reading for ${name}? This cannot be undone.`)) return;
     await api.remove(r!.id);
-    go("#/");
+    window.location.hash = "#/";
   }
 
   return (

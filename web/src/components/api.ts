@@ -2,6 +2,7 @@
 import type { Reading, StageName } from "@/lib/types";
 
 export type LoadedReading = Reading & { generating: StageName | null };
+export type AuthUser = { id: string; email: string; name?: string };
 
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
@@ -9,23 +10,40 @@ async function json<T>(res: Response): Promise<T> {
   return body as T;
 }
 
+const opts = (init?: RequestInit): RequestInit => ({
+  credentials: "include",
+  ...init,
+  headers: { ...(init?.headers ?? {}) },
+});
+
 export const api = {
+  me: () => fetch("/api/auth/me", opts()).then((r) => json<AuthUser>(r)),
+  login: (email: string, password: string) =>
+    fetch("/api/auth/login", opts({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) })).then(
+      (r) => json<AuthUser>(r),
+    ),
+  register: (email: string, password: string, name?: string) =>
+    fetch(
+      "/api/auth/register",
+      opts({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password, name }) }),
+    ).then((r) => json<AuthUser>(r)),
+  logout: () => fetch("/api/auth/logout", opts({ method: "POST" })).then((r) => json<{ ok: boolean }>(r)),
   list: () =>
-    fetch("/api/readings").then((r) =>
+    fetch("/api/readings", opts()).then((r) =>
       json<{ id: string; name: string; date: string; place: string; lagna: string; status: string; updatedAt: string }[]>(r),
     ),
-  get: (id: string) => fetch(`/api/readings/${id}`).then((r) => json<LoadedReading>(r)),
+  get: (id: string) => fetch(`/api/readings/${id}`, opts()).then((r) => json<LoadedReading>(r)),
   create: (intake: unknown) =>
-    fetch("/api/readings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(intake) }).then(
+    fetch("/api/readings", opts({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(intake) })).then(
       (r) => json<LoadedReading>(r),
     ),
   patch: (id: string, body: unknown) =>
-    fetch(`/api/readings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(
+    fetch(`/api/readings/${id}`, opts({ method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(
       (r) => json<LoadedReading>(r),
     ),
-  remove: (id: string) => fetch(`/api/readings/${id}`, { method: "DELETE" }).then((r) => json(r)),
+  remove: (id: string) => fetch(`/api/readings/${id}`, opts({ method: "DELETE" })).then((r) => json(r)),
   geocode: (q: string) =>
-    fetch(`/api/geocode?q=${encodeURIComponent(q)}`).then((r) =>
+    fetch(`/api/geocode?q=${encodeURIComponent(q)}`, opts()).then((r) =>
       json<{ results: { label: string; lat: number; lon: number; tz: string | null }[] }>(r),
     ),
 };
@@ -38,7 +56,7 @@ export type StreamHandlers = {
 };
 
 export async function runStage(id: string, stage: StageName, h: StreamHandlers) {
-  const res = await fetch(`/api/readings/${id}/stage/${stage}`, { method: "POST" });
+  const res = await fetch(`/api/readings/${id}/stage/${stage}`, opts({ method: "POST" }));
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({}));
     h.onError((body as { error?: string }).error ?? `HTTP ${res.status}`);

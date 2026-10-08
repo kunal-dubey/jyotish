@@ -1,11 +1,11 @@
 import type { NextRequest } from "next/server";
+import { isResponse, requireUser } from "@/lib/auth";
 import { computeChart } from "@/lib/chartService";
 import { validIntake } from "@/lib/intake";
 import { isRunning } from "@/lib/stages";
 import { deleteReading, getReading, saveReading } from "@/lib/store";
 import type { Intake, Reading, Score, Status } from "@/lib/types";
-
-const ORDER: Status[] = ["chart", "confirmed", "past_check", "scored", "reports", "guidance", "protocol"];
+import { STATUS_ORDER } from "@/lib/types";
 
 function withRunning(r: Reading) {
   return { ...r, generating: isRunning(r.id) };
@@ -14,7 +14,7 @@ function withRunning(r: Reading) {
 /** Drop everything produced after `to`. */
 function resetTo(r: Reading, to: Status) {
   const o = r.outputs;
-  const keep = ORDER.indexOf(to);
+  const keep = STATUS_ORDER.indexOf(to);
   r.outputs = {
     past: keep >= 2 ? o.past : undefined,
     claims: keep >= 2 ? o.claims : undefined,
@@ -31,14 +31,20 @@ function resetTo(r: Reading, to: Status) {
   r.status = to;
 }
 
-export async function GET(_req: NextRequest, ctx: RouteContext<"/api/readings/[id]">) {
-  const r = await getReading((await ctx.params).id);
+type IdCtx = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, ctx: IdCtx) {
+  const user = await requireUser();
+  if (isResponse(user)) return user;
+  const r = await getReading((await ctx.params).id, user.id);
   return r ? Response.json(withRunning(r)) : Response.json({ error: "Not found" }, { status: 404 });
 }
 
-export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/readings/[id]">) {
-  await deleteReading((await ctx.params).id);
-  return Response.json({ ok: true });
+export async function DELETE(_req: NextRequest, ctx: IdCtx) {
+  const user = await requireUser();
+  if (isResponse(user)) return user;
+  const ok = await deleteReading((await ctx.params).id, user.id);
+  return ok ? Response.json({ ok: true }) : Response.json({ error: "Not found" }, { status: 404 });
 }
 
 type Patch =
@@ -48,8 +54,10 @@ type Patch =
   | { action: "reset"; to: Status }
   | { action: "context"; occupation?: string; practice?: string; question?: string };
 
-export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/readings/[id]">) {
-  const r = await getReading((await ctx.params).id);
+export async function PATCH(req: NextRequest, ctx: IdCtx) {
+  const user = await requireUser();
+  if (isResponse(user)) return user;
+  const r = await getReading((await ctx.params).id, user.id);
   if (!r) return Response.json({ error: "Not found" }, { status: 404 });
   if (isRunning(r.id)) return Response.json({ error: "A stage is generating; wait for it to finish." }, { status: 409 });
   const p = (await req.json()) as Patch;
@@ -107,7 +115,8 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/readings/[
       break;
 
     case "reset":
-      if (!ORDER.includes(p.to) || ORDER.indexOf(p.to) >= ORDER.indexOf(r.status)) return fail("Can only reset backward.");
+      if (!STATUS_ORDER.includes(p.to) || STATUS_ORDER.indexOf(p.to) >= STATUS_ORDER.indexOf(r.status))
+        return fail("Can only reset backward.");
       resetTo(r, p.to);
       break;
 

@@ -1,9 +1,14 @@
 import type { NextRequest } from "next/server";
+import { isResponse, requireUser } from "@/lib/auth";
 import { buildProtocolHtml } from "@/lib/protocolHtml";
 import { getReading } from "@/lib/store";
 
-export async function GET(req: NextRequest, ctx: RouteContext<"/api/readings/[id]/protocol">) {
-  const r = await getReading((await ctx.params).id);
+type IdCtx = { params: Promise<{ id: string }> };
+
+export async function GET(req: NextRequest, ctx: IdCtx) {
+  const user = await requireUser();
+  if (isResponse(user)) return user;
+  const r = await getReading((await ctx.params).id, user.id);
   if (!r?.outputs.protocol) return new Response("No protocol yet.", { status: 404 });
   const html = buildProtocolHtml(r);
   const download = req.nextUrl.searchParams.has("download");

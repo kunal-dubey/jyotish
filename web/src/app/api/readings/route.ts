@@ -1,10 +1,13 @@
 import { computeChart } from "@/lib/chartService";
+import { isResponse, requireUser } from "@/lib/auth";
 import { validIntake } from "@/lib/intake";
 import { listReadings, saveReading } from "@/lib/store";
 import type { Intake, Reading } from "@/lib/types";
 
 export async function GET() {
-  const all = await listReadings();
+  const user = await requireUser();
+  if (isResponse(user)) return user;
+  const all = await listReadings(user.id);
   return Response.json(
     all.map((r) => ({
       id: r.id,
@@ -19,6 +22,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const user = await requireUser();
+  if (isResponse(user)) return user;
   const intake = (await req.json()) as Intake;
   const bad = validIntake(intake);
   if (bad) return Response.json({ error: bad }, { status: 400 });
@@ -29,6 +34,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const r: Reading = {
       id: `${slug}-${crypto.randomUUID().slice(0, 6)}`,
+      userId: user.id,
       createdAt: now,
       updatedAt: now,
       intake,
