@@ -5,7 +5,6 @@ import { STATUS_ORDER } from "@/lib/types";
 import { api, runStage, type LoadedReading } from "./api";
 import Markdown from "./Markdown";
 
-/** Status to reset to before regenerating a stage, and the status the stage produces. */
 const SHAPE: Record<StageName, { resetTo: Status; produces: Status }> = {
   past: { resetTo: "confirmed", produces: "past_check" },
   reports: { resetTo: "scored", produces: "reports" },
@@ -13,7 +12,6 @@ const SHAPE: Record<StageName, { resetTo: Status; produces: Status }> = {
   protocol: { resetTo: "guidance", produces: "protocol" },
 };
 
-// Opus 5.5 list prices per million tokens; input here includes cache writes, so this is approximate.
 function cost(u?: { input: number; output: number; cacheRead: number }) {
   if (!u) return null;
   return (u.input * 4 + u.output * 20 + u.cacheRead * 0.2) / 1e6;
@@ -26,6 +24,7 @@ export default function StageRunner({
   showOutput = true,
   label,
   onReading,
+  collapsedPreview = false,
 }: {
   r: LoadedReading;
   stage: StageName;
@@ -33,11 +32,14 @@ export default function StageRunner({
   showOutput?: boolean;
   label: string;
   onReading: (r: LoadedReading) => void;
+  /** When true and output exists, show a short preview with expand instead of the full report. */
+  collapsedPreview?: boolean;
 }) {
   const [running, setRunning] = useState(false);
   const [thinking, setThinking] = useState("");
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(!collapsedPreview);
   const pending = useRef({ thinking: "", text: "" });
   const frame = useRef<number>(0);
 
@@ -56,7 +58,6 @@ export default function StageRunner({
 
   async function go() {
     setErr(null);
-    // Always clear this stage (and anything after) before a fresh Claude call so the server does not reuse stored output.
     if (has) {
       if (downstream && !confirm("Regenerating this discards every later stage. Continue?")) return;
       try {
@@ -69,6 +70,7 @@ export default function StageRunner({
     setThinking("");
     setText("");
     setRunning(true);
+    setExpanded(true);
     await runStage(r.id, stage, {
       onThinking: (t) => {
         pending.current.thinking += t;
@@ -86,11 +88,15 @@ export default function StageRunner({
 
   const usage = r.usage?.[stage];
   const usd = cost(usage);
+  const preview =
+    has && output && stage !== "protocol"
+      ? output.replace(/\s+/g, " ").trim().slice(0, 280) + (output.length > 280 ? "…" : "")
+      : "";
 
   return (
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        <button className={has ? "btn" : "btn btn-primary"} onClick={go} disabled={running || busyElsewhere}>
+        <button type="button" className={has ? "btn" : "btn btn-primary"} onClick={go} disabled={running || busyElsewhere}>
           {running ? "Writing…" : has ? "Regenerate" : label}
         </button>
         {busyElsewhere && <span className="muted text-[13px]">Another stage is generating ({r.generating}).</span>}
@@ -99,24 +105,36 @@ export default function StageRunner({
             {usage.output.toLocaleString()} tokens out · about ${usd?.toFixed(2)}
           </span>
         )}
+        {has && showOutput && collapsedPreview && !running && (
+          <button type="button" className="see-more ml-auto" onClick={() => setExpanded((e) => !e)}>
+            {expanded ? "Show less" : "Read full report"}
+          </button>
+        )}
       </div>
 
       {err && <p className="note note-bad">{err}</p>}
 
       {running && (
-        <div className="grid gap-4">
+        <div className="grid gap-4 panel-soft">
           <div className="flex items-center gap-2 text-[13px] muted">
-            <span className="pulse" aria-hidden /> {text ? "Writing" : "Thinking through the chart"}
+            <span className="pulse" aria-hidden /> {text ? "Writing" : "Reading the chart"}
           </div>
-          {!text && thinking && <p className="thinking" aria-live="off">{thinking}</p>}
+          {!text && thinking && (
+            <p className="thinking" aria-live="off">
+              {thinking}
+            </p>
+          )}
           {text && stage !== "protocol" && <Markdown text={text} />}
           {text && stage === "protocol" && (
-            <p className="muted text-[13px]">Composing the protocol content ({text.length.toLocaleString()} characters so far).</p>
+            <p className="muted text-[13px]">Composing the protocol ({text.length.toLocaleString()} characters so far).</p>
           )}
         </div>
       )}
 
-      {!running && has && showOutput && <Markdown text={output!} />}
+      {!running && has && showOutput && expanded && <Markdown text={output!} />}
+      {!running && has && showOutput && collapsedPreview && !expanded && (
+        <p className="serif text-[17px] muted italic leading-relaxed max-w-[40rem]">{preview}</p>
+      )}
     </div>
   );
 }

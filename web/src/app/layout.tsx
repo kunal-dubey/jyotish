@@ -7,7 +7,7 @@ const plex = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-plex", weight
 
 export const metadata: Metadata = {
   title: "Jyotish Protocol",
-  description: "Staged Jyotish natal analysis with a blind past-check and a living protocol.",
+  description: "A natal reading that earns its trust — computed chart, blind past-check, calibrated reports.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

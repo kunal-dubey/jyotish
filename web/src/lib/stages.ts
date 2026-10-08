@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { getLlmClient, hasLlmCredentials, llmAuthErrorHint, llmModel } from "./llm";
+import { getLlmClient, hasLlmCredentials, llmAuthErrorHint, llmModel, usingOpenRouter } from "./llm";
 import { ProtocolSchema } from "./protocolSchema";
 import {
   GUIDANCE_STAGE,
@@ -119,11 +119,15 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
       );
     client ??= getLlmClient();
     const isProtocol = stage === "protocol";
+    // Anthropic accepts fallbacks: "default"; OpenRouter only accepts an array of { model }.
+    // Omit Anthropic server-side fallback when routing via OpenRouter (provider failover still applies).
+    const anthropicFallback = usingOpenRouter()
+      ? {}
+      : { betas: ["server-side-fallback-2026-07-01" as const], fallbacks: "default" as const };
     const stream = client.beta.messages.stream({
       model: llmModel(),
       max_tokens: 64000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      ...anthropicFallback,
       thinking: { type: "adaptive", display: "summarized" },
       output_config: {
         effort: "high",
