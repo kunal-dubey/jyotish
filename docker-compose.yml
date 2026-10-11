@@ -1,0 +1,26 @@
+# Local staging-like stack (Mongo + chart). Run the Next app with `npm run web`.
+# Production staging runs on Vercel (web + serverless chart) + MongoDB Atlas.
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - jyotish_mongo:/data/db
+
+  chart:
+    build:
+      context: ./chart-service
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  jyotish_mongo:

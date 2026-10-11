@@ -20,8 +20,9 @@ From the repo root:
 npm install
 npm run setup
 
-# 2. MongoDB (skip if you already have one on :27017)
-docker run -d --name jyotish-mongo -p 27017:27017 --restart unless-stopped mongo:7
+# 2. Mongo + chart via Compose (or keep your own Mongo on :27017)
+npm run stack
+# equivalent: docker compose up -d --build
 
 # 3. Env
 cp web/.env.example web/.env.local
@@ -51,7 +52,7 @@ OpenRouter takes precedence when `OPENROUTER_API_KEY` is set. Direct Anthropic w
 npm run dev
 ```
 
-That starts both processes:
+That starts both processes (Compose already covers Mongo + chart if you used `npm run stack`; otherwise `npm run dev` starts chart + web):
 
 | Process | URL |
 | --- | --- |
@@ -65,7 +66,21 @@ Open **http://localhost:3000**. You can **Begin a reading** as a guest (account 
 ```bash
 npm run chart   # chart service only
 npm run web     # Next.js only (needs chart service + Mongo + env)
+npm run stack   # Mongo + chart containers
 ```
+
+## Staging / production on Vercel
+
+Account: `kushingaround-6762`. Live staging:
+
+| Service | URL |
+| --- | --- |
+| Web | https://jyotish-web-coral.vercel.app |
+| Chart | https://jyotish-chart-theta.vercel.app |
+
+Checklist, env vars, org/project IDs, and GitHub Actions secrets: [`docs/vercel-staging.md`](docs/vercel-staging.md).
+
+Deploys run from **`main`** via GitHub Actions (`.github/workflows/deploy.yml`) and CI (`.github/workflows/ci.yml`).
 
 ## How it is put together
 
@@ -113,4 +128,4 @@ Each stage is one streamed call (default `anthropic/claude-opus-5.5` via OpenRou
 - Without ephemeris files, Swiss Ephemeris uses its built-in Moshier model (~arcsecond for these purposes). For full files, download them and set `SE_EPHE_PATH` before starting the chart service.
 - Swiss Ephemeris keeps sidereal mode per thread; `compute_chart` sets it on every call.
 - Geocoding uses the free Open-Meteo API. You can override the UTC offset by hand.
-- Production: point `MONGODB_URI` at Atlas (or similar); no code change required.
+- Staging/production: point `MONGODB_URI` at Atlas and `CHART_SERVICE_URL` at the Vercel chart project; no app code change required.

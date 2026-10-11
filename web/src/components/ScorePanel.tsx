@@ -88,13 +88,13 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
 
   if (mode === "review") {
     return (
-      <section className="grid gap-8 enter" aria-labelledby="score-h">
+      <section className="grid gap-6 sm:gap-8 enter min-w-0" aria-labelledby="score-h">
         <header className="max-w-[36rem]">
           <p className="eyebrow text-[var(--gold)]">Blind past-check</p>
-          <h2 id="score-h" className="serif text-[clamp(1.8rem,3.5vw,2.4rem)] leading-tight mt-1">
+          <h2 id="score-h" className="serif text-[clamp(1.55rem,4.5vw,2.4rem)] leading-tight mt-1">
             Your score
           </h2>
-          <p className="mt-3 muted">
+          <p className="mt-3 muted text-[14px] sm:text-[15px]">
             <span className="text-[var(--ok)] font-semibold">{tally.right}</span> right ·{" "}
             <span className="text-[var(--bad)] font-semibold">{tally.wrong}</span> wrong ·{" "}
             <span className="font-semibold">{tally.unclear}</span> unclear
@@ -109,7 +109,7 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
             <li key={c.id}>
               <button
                 type="button"
-                className="panel w-full text-left grid md:grid-cols-[3rem_minmax(0,1fr)_auto] gap-3 items-start"
+                className="panel w-full text-left grid gap-2 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:gap-3 items-start"
                 onClick={() => {
                   if (locked && r.status !== "scored") return;
                   setMode("card");
@@ -117,18 +117,22 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
                   setShowNote(!!notes[c.id]);
                 }}
               >
-                <span className="serif muted">{c.id}</span>
-                <span>
-                  <span className="block text-[12px] muted">{c.period}</span>
-                  <span className="serif text-[16px] leading-snug">{c.text}</span>
+                <div className="flex items-center justify-between gap-2 sm:contents">
+                  <span className="serif muted">{c.id}</span>
+                  <span className="text-[12.5px] uppercase tracking-wide font-medium sm:order-none">
+                    {scores[c.id] ?? "—"}
+                  </span>
+                </div>
+                <span className="min-w-0">
+                  <span className="block text-[12px] muted break-words">{c.period}</span>
+                  <span className="serif text-[15px] sm:text-[16px] leading-snug break-words">{c.text}</span>
                 </span>
-                <span className="text-[12.5px] uppercase tracking-wide font-medium">{scores[c.id] ?? "—"}</span>
               </button>
             </li>
           ))}
         </ol>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="btn-row btn-row-stack">
           {!locked && r.status === "past_check" && (
             <>
               <button type="button" className="btn" onClick={() => setMode("card")}>
@@ -145,7 +149,7 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
           {locked && r.status !== "scored" && (
             <span className="muted text-[13px]">Locked: later reports were written against this score.</span>
           )}
-          <span className="muted text-[12.5px] ml-auto">
+          <span className="muted text-[12.5px] sm:ml-auto">
             {saving === "saving" ? "Saving…" : saving === "saved" ? "Draft saved" : ""}
           </span>
         </div>
@@ -157,19 +161,19 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
   if (!claim) return null;
 
   return (
-    <section className="grid gap-6 enter" aria-labelledby="score-h">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
+    <section className="grid gap-5 sm:gap-6 enter min-w-0" aria-labelledby="score-h">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
           <p className="eyebrow text-[var(--gold)]">Hard stop · Blind past-check</p>
-          <h2 id="score-h" className="serif text-[clamp(1.7rem,3.2vw,2.2rem)] leading-tight mt-1">
+          <h2 id="score-h" className="serif text-[clamp(1.45rem,4.2vw,2.2rem)] leading-tight mt-1">
             Did this happen?
           </h2>
         </div>
-        <div className="text-right min-w-[8rem]">
+        <div className="text-right min-w-[7rem] grow sm:grow-0">
           <p className="text-[12.5px] muted mb-1">
             {answered} of {claims.length}
           </p>
-          <div className="progress-track w-36 ml-auto">
+          <div className="progress-track w-full sm:w-36 sm:ml-auto">
             <div className="progress-fill" style={{ width: `${pct}%` }} />
           </div>
         </div>
@@ -180,17 +184,19 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
         your marks.
       </p>
 
-      <div key={claim.id} className="panel-soft fade-claim grid gap-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="serif text-[20px] muted">{claim.id}</span>
-          {claim.control && (
-            <span className="px-2 py-0.5 rounded-full bg-[var(--accent-wash)] text-[11px] uppercase tracking-wider">
-              control
-            </span>
-          )}
-          <span className="text-[12.5px] muted ml-auto">{claim.period}</span>
+      <div key={claim.id} className="panel-soft fade-claim grid gap-4 sm:gap-5 min-w-0">
+        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+          <div className="flex items-center gap-2">
+            <span className="serif text-[20px] muted">{claim.id}</span>
+            {claim.control && (
+              <span className="px-2 py-0.5 rounded-full bg-[var(--accent-wash)] text-[11px] uppercase tracking-wider">
+                control
+              </span>
+            )}
+          </div>
+          <span className="text-[12.5px] muted sm:ml-auto break-words">{claim.period}</span>
         </div>
-        <p className="serif text-[clamp(1.25rem,2.8vw,1.55rem)] leading-snug">{claim.text}</p>
+        <p className="serif text-[clamp(1.15rem,3.8vw,1.55rem)] leading-snug break-words">{claim.text}</p>
 
         <div className="score-choice" role="group" aria-label={`Score for ${claim.id}`}>
           {OPTIONS.map((o) => (
@@ -203,7 +209,7 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
               onClick={() => mark(o.v)}
             >
               <span className="score-mark">{o.mark}</span>
-              <span>
+              <span className="min-w-0">
                 <span className="block font-medium">{o.label}</span>
                 <span className="block text-[12.5px] muted">{o.hint}</span>
               </span>
@@ -227,7 +233,7 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="btn-row">
         <button
           type="button"
           className="btn btn-quiet"
@@ -251,12 +257,12 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
           Skip ahead →
         </button>
         {done && (
-          <button type="button" className="btn btn-primary ml-auto" onClick={() => setMode("review")}>
+          <button type="button" className="btn btn-primary w-full sm:w-auto sm:ml-auto" onClick={() => setMode("review")}>
             Review & submit
           </button>
         )}
         {!done && (
-          <span className="muted text-[12.5px] ml-auto">
+          <span className="muted text-[12.5px] w-full sm:w-auto sm:ml-auto">
             {saving === "saving" ? "Saving…" : saving === "saved" ? "Draft saved" : ""}
           </span>
         )}

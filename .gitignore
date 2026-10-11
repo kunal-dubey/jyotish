@@ -1,6 +1,7 @@
 node_modules/
 .env.local
 .env*.local
+.env
 dist/
 build/
 *.log
@@ -8,3 +9,5 @@ build/
 data/readings/
 .next/
 .claude/
+.vercel
+**/.vercel

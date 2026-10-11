@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Intake, TimeSource } from "@/lib/types";
 import { api, type LoadedReading } from "./api";
+import TimeField from "./TimeField";
 
 const SOURCES: { v: TimeSource; label: string }[] = [
   { v: "certificate", label: "Birth certificate" },
@@ -78,18 +79,20 @@ export default function IntakeForm({
   }
 
   return (
-    <main className={initial ? "" : "mx-auto max-w-[78rem] px-5 md:px-8 py-10 md:py-16"}>
-      <form onSubmit={submit} className="grid lg:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] gap-10 lg:gap-20 enter">
-        <div>
+    <main className={initial ? "min-w-0" : "mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 py-8 sm:py-10 md:py-16 min-w-0"}>
+      <form onSubmit={submit} className="grid lg:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] gap-8 lg:gap-20 enter">
+        <div className="min-w-0">
           <p className="eyebrow">Stage 0</p>
-          <h1 className="serif text-[38px] leading-tight mt-2">{initial ? "Correct the birth data" : "Intake"}</h1>
-          <p className="muted mt-4 max-w-[26rem]">
+          <h1 className="serif text-[clamp(1.75rem,5vw,2.375rem)] leading-tight mt-2">
+            {initial ? "Correct the birth data" : "Intake"}
+          </h1>
+          <p className="muted mt-4 max-w-[26rem] text-[14.5px] sm:text-[15px]">
             Four things are required. The time matters most: the rising sign can change in a few minutes, and a wrong
             time zone offset looks exactly like a wrong birth time.
           </p>
         </div>
 
-        <div className="grid gap-8 max-w-[40rem]">
+        <div className="grid gap-6 sm:gap-8 max-w-[40rem] min-w-0">
           <fieldset className="grid sm:grid-cols-2 gap-4">
             <label className="field">
               <span>Full name</span>
@@ -111,10 +114,10 @@ export default function IntakeForm({
               <span>Date of birth</span>
               <input className="input" type="date" required value={f.date ?? ""} onChange={(e) => set("date", e.target.value)} />
             </label>
-            <label className="field">
+            <div className="field sm:col-span-2">
               <span>Time of birth, local clock</span>
-              <input className="input" type="time" required value={f.time ?? ""} onChange={(e) => set("time", e.target.value)} />
-            </label>
+              <TimeField value={f.time ?? ""} onChange={(v) => set("time", v)} />
+            </div>
           </fieldset>
 
           <fieldset className="field">
@@ -230,7 +233,7 @@ export default function IntakeForm({
           </fieldset>
 
           {err && <p className="note note-bad">{err}</p>}
-          <div className="flex gap-3">
+          <div className="btn-row btn-row-stack sm:flex-row">
             <button className="btn btn-primary" disabled={busy}>
               {busy ? "Computing…" : initial ? "Recompute the chart" : "Compute the chart"}
             </button>

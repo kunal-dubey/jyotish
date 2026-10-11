@@ -48,36 +48,36 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
   }
 
   return (
-    <div className="grid gap-8 enter">
-      <div className="grid md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-8 md:gap-12 items-start">
-        <figure className="panel">
-          <div dangerouslySetInnerHTML={{ __html: svg }} />
+    <div className="grid gap-6 sm:gap-8 enter min-w-0">
+      <div className="grid md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-6 md:gap-12 items-start">
+        <figure className="panel max-w-full overflow-x-auto">
+          <div className="min-w-0" dangerouslySetInnerHTML={{ __html: svg }} />
           <figcaption className="text-[12.5px] muted mt-2">
             {regionalStyle(r.intake.place.label) === "south" ? "South" : "North"} Indian style. ʳ marks retrograde.
           </figcaption>
         </figure>
 
-        <div className="grid gap-5">
+        <div className="grid gap-5 min-w-0">
           <div>
             <p className="eyebrow">The chart</p>
-            <h2 className="serif text-[clamp(1.85rem,3.5vw,2.35rem)] leading-tight mt-1">
+            <h2 className="serif text-[clamp(1.55rem,4.5vw,2.35rem)] leading-tight mt-1">
               {c.ascendant.sign} rising, {c.ascendant.deg}
             </h2>
-            <p className="muted mt-1">
+            <p className="muted mt-1 text-[13.5px] sm:text-[15px]">
               {c.ascendant.nakshatra} pada {c.ascendant.pada} · lord {c.ascendant.lord} · navamsa {c.ascendant.navamsa}
             </p>
           </div>
 
-          <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-[14px]">
-            <dt className="muted">Moment</dt>
+          <dl className="meta-grid">
+            <dt>Moment</dt>
             <dd>
               {r.intake.date} {r.intake.time} · {r.intake.place.label}
             </dd>
-            <dt className="muted">Offset</dt>
+            <dt>Offset</dt>
             <dd>
               {c.time.utc_offset_str} <span className="muted">from {c.time.offset_source}</span>
             </dd>
-            <dt className="muted">Lagna window</dt>
+            <dt>Lagna window</dt>
             <dd>
               {mins(lg.minutes_earlier_survives)} earlier · {mins(lg.minutes_later_survives)} later
             </dd>
@@ -102,27 +102,27 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
 
       {details && (
         <div className="grid gap-8 enter">
-          <dl className="grid grid-cols-[9rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-[14px] panel">
-            <dt className="muted">Universal time</dt>
+          <dl className="meta-grid panel">
+            <dt>Universal time</dt>
             <dd>{c.time.utc.replace("T", " ").replace("Z", " UT")}</dd>
-            <dt className="muted">Coordinates</dt>
+            <dt>Coordinates</dt>
             <dd>
               {c.input.lat.toFixed(4)}, {c.input.lon.toFixed(4)}
             </dd>
-            <dt className="muted">Navamsa lagna</dt>
+            <dt>Navamsa lagna</dt>
             <dd>
               {mins(nl.minutes_earlier_survives)} / {mins(nl.minutes_later_survives)}
             </dd>
-            <dt className="muted">Moon nakshatra</dt>
+            <dt>Moon nakshatra</dt>
             <dd>
               {c.vimshottari.moon_nakshatra} · {mins(mn.minutes_earlier_survives)} / {mins(mn.minutes_later_survives)}
             </dd>
-            <dt className="muted">Nodes</dt>
+            <dt>Nodes</dt>
             <dd>
               Mean used. True node {c.nodes.padas_differ ? "differs in pada" : "same pada"} ({c.nodes.true.nakshatra}{" "}
               {c.nodes.true.pada}).
             </dd>
-            <dt className="muted">Settings</dt>
+            <dt>Settings</dt>
             <dd>Lahiri {c.settings.ayanamsa_value}°, whole-sign</dd>
           </dl>
 
@@ -203,17 +203,17 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
         </div>
       )}
 
-      <div className="border-t hair pt-8 flex flex-wrap items-center gap-4">
+      <div className="border-t hair pt-6 sm:pt-8 grid gap-4 sm:flex sm:flex-wrap sm:items-center">
         {r.status === "chart" ? (
           <>
-            <div className="max-w-[34rem]">
+            <div className="max-w-[34rem] min-w-0">
               <p className="eyebrow text-[var(--gold)]">Hard stop 1 · Confirm</p>
-              <p className="mt-1 text-[14.5px]">
+              <p className="mt-1 text-[14px] sm:text-[14.5px]">
                 A chart on a mistyped year is coherent and completely wrong. Check the moment and place before any model
                 writing begins.
               </p>
             </div>
-            <div className="flex gap-3 ml-auto">
+            <div className="btn-row btn-row-stack sm:ml-auto sm:flex-row">
               <button type="button" className="btn" onClick={() => setEditing(true)}>
                 Edit
               </button>
@@ -225,7 +225,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
         ) : (
           <>
             <p className="muted text-[13.5px]">Confirmed {r.confirmedAt?.slice(0, 10)}.</p>
-            <button type="button" className="btn btn-quiet ml-auto" onClick={() => setEditing(true)}>
+            <button type="button" className="btn btn-quiet sm:ml-auto" onClick={() => setEditing(true)}>
               Correct birth data
             </button>
           </>

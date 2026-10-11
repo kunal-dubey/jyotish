@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Intake, TimeSource } from "@/lib/types";
 import { api, type AuthUser, type LoadedReading } from "./api";
+import TimeField from "./TimeField";
 
 const SOURCES: { v: TimeSource; label: string; hint: string }[] = [
   { v: "certificate", label: "Birth certificate", hint: "Printed or official record" },
@@ -122,7 +123,7 @@ export default function Onboarding({
   return (
     <main className="sky min-h-[calc(100dvh-3.5rem)] relative">
       <div className="orb orb-b drift" aria-hidden />
-      <div className="mx-auto max-w-[34rem] px-5 md:px-8 py-10 md:py-16">
+      <div className="mx-auto max-w-[34rem] px-4 sm:px-5 md:px-8 py-8 sm:py-10 md:py-16 min-w-0">
         <div className="mb-10">
           <div className="flex items-center justify-between gap-4 mb-3">
             <button type="button" className="btn-quiet text-[13px]" onClick={back}>
@@ -209,13 +210,7 @@ export default function Onboarding({
               title="What time, on the local clock?"
               body="Minutes matter. The rising sign can turn in a short window — we'll show you how wide that window is."
             >
-              <input
-                ref={inputRef as React.RefObject<HTMLInputElement>}
-                className="flow-input flow-input-sm mb-6"
-                type="time"
-                value={f.time ?? ""}
-                onChange={(e) => set("time", e.target.value)}
-              />
+              <TimeField value={f.time ?? ""} onChange={(v) => set("time", v)} autoFocus />
               {roundTime && (
                 <p className="note note-warn mb-6">
                   Times ending in :00 or :30 are often rounded. The next step asks how the time is known.
@@ -351,7 +346,7 @@ export default function Onboarding({
                 <span>A question behind the request</span>
                 <textarea className="input" rows={2} value={f.question ?? ""} onChange={(e) => set("question", e.target.value)} placeholder="Optional" />
               </label>
-              <div className="flex flex-wrap gap-3">
+              <div className="btn-row btn-row-stack sm:flex-row">
                 <button type="button" className="btn btn-primary" onClick={() => go(signedIn ? "compute" : "account")}>
                   Continue
                 </button>
@@ -428,25 +423,17 @@ export default function Onboarding({
               title={`Cast the chart for ${f.callName || f.name || "them"}.`}
               body={`${f.date} · ${f.time} · ${place?.label ?? "—"}. Next you'll confirm the rising sign before any model writing begins.`}
             >
-              <dl className="panel-soft text-[14px] grid gap-2 mb-8">
-                <div className="flex justify-between gap-4">
-                  <dt className="muted">Name</dt>
-                  <dd>{f.name}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="muted">Moment</dt>
-                  <dd>
-                    {f.date} {f.time}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="muted">Place</dt>
-                  <dd className="text-right">{place?.label}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="muted">Time source</dt>
-                  <dd>{SOURCES.find((s) => s.v === f.timeSource)?.label}</dd>
-                </div>
+              <dl className="panel-soft meta-grid mb-8">
+                <dt>Name</dt>
+                <dd>{f.name}</dd>
+                <dt>Moment</dt>
+                <dd>
+                  {f.date} {f.time}
+                </dd>
+                <dt>Place</dt>
+                <dd>{place?.label}</dd>
+                <dt>Time source</dt>
+                <dd>{SOURCES.find((s) => s.v === f.timeSource)?.label}</dd>
               </dl>
               <button type="button" className="btn btn-primary" disabled={busy} onClick={compute}>
                 {busy ? "Computing the chart…" : "Compute the chart"}
@@ -473,10 +460,10 @@ function StepShell({
   children: React.ReactNode;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="eyebrow text-[var(--gold)]">{kicker}</p>
-      <h1 className="serif text-[clamp(1.85rem,4vw,2.45rem)] leading-[1.12] tracking-tight mt-2">{title}</h1>
-      <p className="muted mt-4 mb-8 leading-relaxed">{body}</p>
+      <h1 className="serif text-[clamp(1.55rem,5.5vw,2.45rem)] leading-[1.12] tracking-tight mt-2 break-words">{title}</h1>
+      <p className="muted mt-4 mb-8 leading-relaxed text-[14.5px] sm:text-[15px]">{body}</p>
       {children}
     </div>
   );

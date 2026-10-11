@@ -5,7 +5,9 @@
     "setup": "npm --prefix web install && cd chart-service && uv sync",
     "chart": "cd chart-service && uv run uvicorn chart_service.api:app --host 127.0.0.1 --port 8765",
     "web": "npm --prefix web run dev",
-    "dev": "concurrently -n chart,web -c blue,magenta \"npm run chart\" \"npm run web\""
+    "dev": "concurrently -n chart,web -c blue,magenta \"npm run chart\" \"npm run web\"",
+    "stack": "docker compose up -d --build",
+    "stack:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.2.0"

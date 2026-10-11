@@ -14,24 +14,26 @@ const SECTIONS: {
   id: Section;
   n: string;
   title: string;
+  short: string;
   sub: string;
   doneAt: Status;
   openAt: Status;
   highlight?: boolean;
 }[] = [
-  { id: "chart", n: "1", title: "Chart", sub: "Confirm the moment", doneAt: "confirmed", openAt: "chart" },
+  { id: "chart", n: "1", title: "Chart", short: "Chart", sub: "Confirm the moment", doneAt: "confirmed", openAt: "chart" },
   {
     id: "past",
     n: "2",
     title: "Blind past-check",
+    short: "Past-check",
     sub: "The heart of the reading",
     doneAt: "scored",
     openAt: "confirmed",
     highlight: true,
   },
-  { id: "reports", n: "3", title: "Reports", sub: "After the score", doneAt: "reports", openAt: "scored" },
-  { id: "guidance", n: "4", title: "Guidance", sub: "Plain language", doneAt: "guidance", openAt: "reports" },
-  { id: "protocol", n: "5", title: "Protocol", sub: "A page to keep", doneAt: "protocol", openAt: "guidance" },
+  { id: "reports", n: "3", title: "Reports", short: "Reports", sub: "After the score", doneAt: "reports", openAt: "scored" },
+  { id: "guidance", n: "4", title: "Guidance", short: "Guidance", sub: "Plain language", doneAt: "guidance", openAt: "reports" },
+  { id: "protocol", n: "5", title: "Protocol", short: "Protocol", sub: "A page to keep", doneAt: "protocol", openAt: "guidance" },
 ];
 
 function furthest(s: Status): Section {
@@ -69,7 +71,7 @@ export default function ReadingView({ id }: { id: string }) {
     return () => clearInterval(t);
   }, [r?.generating, id, onReading]);
 
-  if (err) return <p className="note note-bad m-8">{err}</p>;
+  if (err) return <p className="note note-bad m-4 sm:m-8">{err}</p>;
   if (!r || !section) {
     return (
       <div className="sky min-h-[40vh] grid place-items-center">
@@ -81,7 +83,12 @@ export default function ReadingView({ id }: { id: string }) {
   const name = r.intake.callName || r.intake.name;
   const isOpen = (s: (typeof SECTIONS)[number]) => at(r.status) >= at(s.openAt);
   const claimsReady = !!(r.outputs.claims && r.outputs.claims.length > 0);
-  const pastWriting = !r.outputs.past || !!r.generating;
+  const pastGenerating = r.generating === "past";
+  const showPastRunner = !claimsReady || showFoundation || pastGenerating;
+
+  function selectSection(s: (typeof SECTIONS)[number]) {
+    if (isOpen(s)) setSection(s.id);
+  }
 
   async function remove() {
     if (!confirm(`Delete the reading for ${name}? This cannot be undone.`)) return;
@@ -91,13 +98,38 @@ export default function ReadingView({ id }: { id: string }) {
 
   return (
     <div className="sky min-h-[calc(100dvh-3.5rem)]">
-      <div className="mx-auto max-w-[78rem] px-5 md:px-8 py-8 md:py-12 grid lg:grid-cols-[14rem_minmax(0,1fr)] gap-8 lg:gap-14">
-        <aside className="lg:sticky lg:top-20 self-start">
-          <h1 className="serif text-[26px] leading-tight">{name}</h1>
-          <p className="text-[13px] muted mt-1">
-            {r.intake.date} · {r.chart.ascendant.sign} lagna
-          </p>
-          <nav className="rail mt-6 grid" aria-label="Stages">
+      <div className="mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 py-6 sm:py-8 md:py-12 grid lg:grid-cols-[14rem_minmax(0,1fr)] gap-6 lg:gap-14">
+        <aside className="lg:sticky lg:top-20 self-start min-w-0">
+          <div className="min-w-0">
+            <h1 className="serif text-[clamp(1.4rem,4vw,1.65rem)] leading-tight truncate">{name}</h1>
+            <p className="text-[13px] muted mt-1">
+              {r.intake.date} · {r.chart.ascendant.sign} lagna
+            </p>
+          </div>
+
+          {/* Mobile / tablet: horizontal stage chips */}
+          <nav className="rail-scroll mt-4 lg:hidden" aria-label="Stages">
+            {SECTIONS.map((s) => (
+              <a
+                key={s.id}
+                href={`#/r/${r.id}`}
+                aria-current={section === s.id ? "step" : undefined}
+                aria-disabled={!isOpen(s)}
+                className={`${at(r.status) >= at(s.doneAt) ? "done" : ""} ${s.highlight ? "highlight" : ""}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  selectSection(s);
+                }}
+                style={!isOpen(s) ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+              >
+                <span className="dot">{at(r.status) >= at(s.doneAt) ? "✓" : s.n}</span>
+                {s.short}
+              </a>
+            ))}
+          </nav>
+
+          {/* Desktop: vertical rail */}
+          <nav className="rail mt-6 hidden lg:grid" aria-label="Stages">
             {SECTIONS.map((s, k) => (
               <div key={s.id}>
                 <a
@@ -107,12 +139,12 @@ export default function ReadingView({ id }: { id: string }) {
                   className={`${at(r.status) >= at(s.doneAt) ? "done" : ""} ${s.highlight ? "highlight" : ""}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (isOpen(s)) setSection(s.id);
+                    selectSection(s);
                   }}
                   style={!isOpen(s) ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
                 >
                   <span className="dot">{at(r.status) >= at(s.doneAt) ? "✓" : s.n}</span>
-                  <span>
+                  <span className="min-w-0">
                     <span className="block text-[14px] font-medium">{s.title}</span>
                     <span className="block text-[12px] muted">{s.sub}</span>
                   </span>
@@ -122,32 +154,32 @@ export default function ReadingView({ id }: { id: string }) {
               </div>
             ))}
           </nav>
-          <button type="button" className="btn btn-quiet text-[12.5px] mt-6" onClick={remove}>
+
+          <button type="button" className="btn btn-quiet text-[12.5px] mt-4 lg:mt-6" onClick={remove}>
             Delete reading
           </button>
         </aside>
 
-        <main key={section} className="min-w-0">
+        <main key={section} className="min-w-0 overflow-x-clip">
           {section === "chart" && <ChartPanel r={r} onReading={onReading} />}
 
           {section === "past" && (
-            <div className="grid gap-10">
-              {!claimsReady && (
+            <div className="grid gap-8 sm:gap-10">
+              {!claimsReady && !pastGenerating && (
                 <header className="max-w-[40rem] enter">
                   <p className="eyebrow text-[var(--gold)]">The heart of the path</p>
-                  <h2 className="serif text-[clamp(1.9rem,3.8vw,2.6rem)] leading-tight mt-1">
+                  <h2 className="serif text-[clamp(1.55rem,4.5vw,2.6rem)] leading-tight mt-1">
                     A blind check of the past
                   </h2>
-                  <p className="muted mt-3 leading-relaxed">
-                    The model sees the name, birth data, and how the time is known — nothing else. It writes a foundation,
-                    then concrete claims about periods you already lived. You score those claims before anything forward
-                    appears.
+                  <p className="muted mt-3 leading-relaxed text-[14.5px] sm:text-[15px]">
+                    The model sees the name, birth data, and how the time is known — nothing else. It prepares claims
+                    about periods you already lived. You will score those claims — the long draft stays out of the way.
                   </p>
                 </header>
               )}
 
-              {claimsReady && !pastWriting && (
-                <div className="flex items-center justify-between gap-3">
+              {claimsReady && !pastGenerating && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="eyebrow">Foundation written</p>
                   <button type="button" className="see-more" onClick={() => setShowFoundation((v) => !v)}>
                     {showFoundation ? "Hide foundation" : "Curious? Read the foundation"}
@@ -155,7 +187,7 @@ export default function ReadingView({ id }: { id: string }) {
                 </div>
               )}
 
-              {(!claimsReady || showFoundation || pastWriting) && (
+              {showPastRunner && (
                 <StageRunner
                   r={r}
                   stage="past"
@@ -165,7 +197,7 @@ export default function ReadingView({ id }: { id: string }) {
                 />
               )}
 
-              {claimsReady && !r.generating && <ScorePanel key={r.outputs.past?.length} r={r} onReading={onReading} />}
+              {claimsReady && !pastGenerating && <ScorePanel key={r.outputs.past?.length} r={r} onReading={onReading} />}
             </div>
           )}
 
@@ -219,7 +251,7 @@ export default function ReadingView({ id }: { id: string }) {
               />
               {r.outputs.protocol && !r.generating && (
                 <div className="grid gap-4 mt-4">
-                  <div className="flex flex-wrap gap-3">
+                  <div className="btn-row btn-row-stack sm:flex-row">
                     <a className="btn btn-primary" href={`/api/readings/${r.id}/protocol?download=1`}>
                       Download HTML
                     </a>
@@ -231,7 +263,7 @@ export default function ReadingView({ id }: { id: string }) {
                     key={r.updatedAt}
                     title="Protocol preview"
                     src={`/api/readings/${r.id}/protocol`}
-                    className="w-full h-[70vh] border hair rounded-[12px] bg-white"
+                    className="w-full h-[55vh] sm:h-[70vh] border hair rounded-[12px] bg-white max-w-full"
                   />
                 </div>
               )}
@@ -255,11 +287,11 @@ function ModuleStage({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-8 enter">
+    <div className="grid gap-6 sm:gap-8 enter min-w-0">
       <header className="max-w-[40rem]">
         <p className="eyebrow">{kicker}</p>
-        <h2 className="serif text-[clamp(1.85rem,3.5vw,2.4rem)] leading-tight mt-1">{title}</h2>
-        <p className="muted mt-3 leading-relaxed">{body}</p>
+        <h2 className="serif text-[clamp(1.55rem,4.5vw,2.4rem)] leading-tight mt-1">{title}</h2>
+        <p className="muted mt-3 leading-relaxed text-[14.5px] sm:text-[15px]">{body}</p>
       </header>
       {children}
     </div>

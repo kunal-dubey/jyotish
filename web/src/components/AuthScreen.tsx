@@ -30,9 +30,9 @@ export default function AuthScreen({ onAuthed }: { onAuthed: (u: AuthUser) => vo
   return (
     <main className="sky min-h-[calc(100dvh-3.5rem)] relative">
       <div className="orb orb-a drift" aria-hidden />
-      <div className="mx-auto max-w-[26rem] px-5 py-16 md:py-24 enter">
+      <div className="mx-auto max-w-[26rem] px-4 sm:px-5 py-12 sm:py-16 md:py-24 enter min-w-0">
         <p className="eyebrow text-[var(--gold)]">Your readings, kept</p>
-        <h1 className="serif text-[36px] leading-tight tracking-tight mt-2">
+        <h1 className="serif text-[clamp(1.85rem,6vw,2.25rem)] leading-tight tracking-tight mt-2">
           {mode === "login" ? "Welcome back" : "Create an account"}
         </h1>
         <p className="mt-3 text-[15px] muted leading-relaxed">
@@ -69,7 +69,7 @@ export default function AuthScreen({ onAuthed }: { onAuthed: (u: AuthUser) => vo
             />
           </label>
           {err && <p className="note note-bad">{err}</p>}
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary w-full" disabled={busy}>
             {busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
           </button>
         </form>

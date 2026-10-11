@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, Newsreader } from "next/font/google";
 import "./globals.css";
 
@@ -8,6 +8,12 @@ const plex = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-plex", weight
 export const metadata: Metadata = {
   title: "Jyotish Protocol",
   description: "A natal reading that earns its trust — computed chart, blind past-check, calibrated reports.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

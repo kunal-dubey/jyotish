@@ -63,32 +63,33 @@ export default function App() {
   return (
     <div className="min-h-dvh">
       <header className="site-header">
-        <div className="mx-auto max-w-[78rem] px-5 md:px-8 h-14 flex items-center justify-between gap-4">
-          <a href="#/" className="serif text-[19px] tracking-tight">
+        <div className="header-inner mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 flex items-center justify-between gap-2 sm:gap-4">
+          <a href="#/" className="serif text-[17px] sm:text-[19px] tracking-tight shrink-0">
             Jyotish <span className="muted italic">protocol</span>
           </a>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             {user ? (
               <>
-                <span className="text-[12.5px] muted hidden sm:inline truncate max-w-[12rem]">{user.email}</span>
+                <span className="text-[12px] muted hidden md:inline truncate max-w-[10rem]">{user.email}</span>
                 {route.name !== "begin" && (
-                  <a href="#/begin" className="btn btn-quiet">
-                    New reading
+                  <a href="#/begin" className="btn btn-quiet text-[13px] sm:text-[14px]">
+                    <span className="sm:hidden">New</span>
+                    <span className="hidden sm:inline">New reading</span>
                   </a>
                 )}
-                <button type="button" className="btn btn-quiet" onClick={logout}>
+                <button type="button" className="btn btn-quiet text-[13px] sm:text-[14px]" onClick={logout}>
                   Sign out
                 </button>
               </>
             ) : (
               <>
                 {route.name !== "begin" && (
-                  <a href="#/begin" className="btn btn-quiet">
+                  <a href="#/begin" className="btn btn-quiet text-[13px] sm:text-[14px]">
                     Begin
                   </a>
                 )}
                 {route.name !== "auth" && (
-                  <a href="#/auth" className="btn btn-ghost">
+                  <a href="#/auth" className="btn btn-ghost text-[13px] sm:text-[14px]">
                     Sign in
                   </a>
                 )}
