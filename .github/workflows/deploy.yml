@@ -19,11 +19,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      # Vercel Python builds that detect uv.lock / pyproject require `uv` on PATH
-      # when running `vercel build` on a GitHub runner (not on Vercel’s own builders).
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
       - name: Pull project settings
@@ -32,17 +27,13 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_CHART_PROJECT_ID }}
-      - name: Build
-        working-directory: chart-service
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_CHART_PROJECT_ID }}
+      # Build on Vercel (not --prebuilt). Local/GHA prebuilds of pyswisseph link against
+      # a newer glibc than the Python lambda runtime (GLIBC_2.38 missing → import crash).
       - id: deploy
         name: Deploy
         working-directory: chart-service
         run: |
-          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          url=$(vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes)
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Chart deployed to $url"
         env:
