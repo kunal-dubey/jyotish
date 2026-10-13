@@ -19,6 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # Vercel Python builds that detect uv.lock / pyproject require `uv` on PATH
+      # when running `vercel build` on a GitHub runner (not on Vercel’s own builders).
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
       - name: Pull project settings
