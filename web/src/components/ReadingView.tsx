@@ -205,7 +205,7 @@ export default function ReadingView({ id }: { id: string }) {
             <ModuleStage
               kicker="After the score"
               title="Reports 3 to 6"
-              body="Written with your score in hand, and with any optional context you shared. Skim for what matters; expand when curious."
+              body="Written with your score in hand. Open a section when you want the detail."
             >
               <StageRunner
                 r={r}
@@ -213,7 +213,6 @@ export default function ReadingView({ id }: { id: string }) {
                 output={r.outputs.reports}
                 label="Write the reports"
                 onReading={onReading}
-                collapsedPreview
               />
             </ModuleStage>
           )}
@@ -222,7 +221,7 @@ export default function ReadingView({ id }: { id: string }) {
             <ModuleStage
               kicker="Plain language"
               title="Guidance"
-              body="The same substance without the vocabulary, plus a short glossary."
+              body="The same substance without the vocabulary. Open a section when you want the detail."
             >
               <StageRunner
                 r={r}
@@ -230,7 +229,6 @@ export default function ReadingView({ id }: { id: string }) {
                 output={r.outputs.guidance}
                 label="Write the guidance"
                 onReading={onReading}
-                collapsedPreview
               />
             </ModuleStage>
           )}

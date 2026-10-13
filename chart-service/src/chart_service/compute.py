@@ -160,10 +160,17 @@ def _fmt_offset(h: float) -> str:
 # ---------- sensitivity ----------
 
 def _minutes_until_change(fn, base_val, utc: dt.datetime, direction: int, limit: int = 240) -> int | None:
-    for k in range(1, limit + 1):
-        if fn(utc + dt.timedelta(minutes=direction * k)) != base_val:
-            return k - 1
-    return None
+    """Binary search for how many whole minutes the feature survives in one direction."""
+    if fn(utc + dt.timedelta(minutes=direction * limit)) == base_val:
+        return None
+    lo, hi = 0, limit
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if fn(utc + dt.timedelta(minutes=direction * mid)) == base_val:
+            lo = mid
+        else:
+            hi = mid
+    return lo
 
 
 def sensitivity(utc: dt.datetime, lat: float, lon: float) -> dict:
@@ -269,8 +276,15 @@ def vimshottari(moon_lon: float, birth_utc: dt.datetime, today: dt.date) -> dict
 
 # ---------- transits ----------
 
-def ingresses(body: int, start: dt.date, end: dt.date, step_days: int = 2) -> list[dict]:
-    """Sign changes of a slow body between two dates, refined to the day."""
+def ingresses(body: int, start: dt.date, end: dt.date, step_days: int = 10) -> list[dict]:
+    """Sign changes of a slow body between two dates, refined to the day.
+
+    Coarse step then bisection: Saturn ~10d, Jupiter ~5d is enough to catch every
+    ingress without a day-by-day walk.
+    """
+    if end <= start:
+        return []
+
     def s_at(d: dt.date) -> int:
         return sign_of(body_lon(swe.julday(d.year, d.month, d.day, 0), body)[0])
 
@@ -278,7 +292,7 @@ def ingresses(body: int, start: dt.date, end: dt.date, step_days: int = 2) -> li
     prev_d, prev_s = start, s_at(start)
     d = start
     while d < end:
-        d = d + dt.timedelta(days=step_days)
+        d = min(d + dt.timedelta(days=step_days), end)
         s = s_at(d)
         if s != prev_s:
             lo, hi = prev_d, d
@@ -291,6 +305,33 @@ def ingresses(body: int, start: dt.date, end: dt.date, step_days: int = 2) -> li
             out.append({"date": iso(hi), "from": SIGNS[prev_s], "to": SIGNS[s], "sign_index": s})
             prev_s = s
         prev_d = d
+    return out
+
+
+def convergences(
+    antardashas: list[dict],
+    ingress_rows: list[dict],
+    birth: dt.date,
+    *,
+    window_days: int = 120,
+    body_label: str = "Saturn",
+) -> list[dict]:
+    """AD starts that land within window_days of a slow-body ingress (most testable points)."""
+    out = []
+    for ad in antardashas:
+        ad_start = dt.date.fromisoformat(ad["start"])
+        for ing in ingress_rows:
+            ing_d = dt.date.fromisoformat(ing["date"])
+            if abs((ad_start - ing_d).days) <= window_days:
+                age = round((ad_start - birth).days / YR, 1)
+                out.append({
+                    "dasha": ad["label"],
+                    "dasha_start": ad["start"],
+                    "transit": f"{body_label} enters {ing['to']}",
+                    "transit_date": ing["date"],
+                    "age": age,
+                })
+                break
     return out
 
 
@@ -425,8 +466,12 @@ def compute_chart(*, date: str, time: str, lat: float, lon: float, tz: str | Non
     moon_sign = sidx["Moon"]
     life_end = dt.date(utc.year + 100, 1, 1)
     birth_d = utc.date()
-    sat_ing = ingresses(swe.SATURN, birth_d, max(life_end, today_d + dt.timedelta(days=365 * 25)))
-    jup_ing = ingresses(swe.JUPITER, birth_d, today_d + dt.timedelta(days=365 * 12))
+    fwd_end = today_d + dt.timedelta(days=365 * 25)
+    # Past walk for lived Saturn; short forward walks for upcoming ingresses.
+    sat_ing_past = ingresses(swe.SATURN, birth_d, today_d, step_days=10)
+    sat_ing_fwd = ingresses(swe.SATURN, today_d, fwd_end, step_days=10)
+    sat_ing = sat_ing_past + sat_ing_fwd
+    jup_ing = ingresses(swe.JUPITER, today_d, today_d + dt.timedelta(days=365 * 12), step_days=5)
     sat_spans = saturn_phases(sat_ing, moon_sign, sidx["Saturn"], birth_d, life_end)
     now_sat = next((s for s in sat_spans if s["start"] <= today_d.isoformat()
                     and (s["end"] is None or s["end"] > today_d.isoformat())), None)
@@ -446,6 +491,26 @@ def compute_chart(*, date: str, time: str, lat: float, lon: float, tz: str | Non
 
     vim = vimshottari(pos["Moon"], utc, today_d)
     sens = sensitivity(utc, lat, lon)
+
+    past_ads = []
+    for md in vim["mahadashas"]:
+        if md["status"] == "future":
+            continue
+        for ad in md["antardashas"]:
+            if ad["status"] == "future":
+                continue
+            past_ads.append({"label": f"{md['lord']}-{ad['lord']}", "start": ad["start"],
+                             "end": ad["end"], "status": ad["status"]})
+    past_conv = convergences(past_ads, sat_ing_past, birth_d)
+
+    fwd_horizon = (today_d + dt.timedelta(days=365 * 10)).isoformat()
+    fwd_ads = []
+    for md in vim["mahadashas"]:
+        for ad in md["antardashas"]:
+            if ad["end"] > today_d.isoformat() and ad["start"] < fwd_horizon:
+                fwd_ads.append({"label": f"{md['lord']}-{ad['lord']}", "start": ad["start"],
+                                "end": ad["end"], "status": ad["status"]})
+    fwd_conv = convergences(fwd_ads, sat_ing_fwd, birth_d, body_label="Saturn")
 
     chart = {
         "input": {"date": date, "time": time, "lat": lat, "lon": lon, "tz": tz,
@@ -473,9 +538,13 @@ def compute_chart(*, date: str, time: str, lat: float, lon: float, tz: str | Non
         "vimshottari": vim,
         "transits": {"date": today_d.isoformat(), "bodies": tr, "status": transit_status,
                      "saturn_spans": sat_spans, "saturn_ingresses": sat_ing,
-                     "jupiter_ingresses": jup_ing},
+                     "saturn_ingresses_past": sat_ing_past, "saturn_ingresses_forward": sat_ing_fwd,
+                     "jupiter_ingresses": jup_ing,
+                     "convergences_past": past_conv, "convergences_forward": fwd_conv},
     }
     chart["text"] = render_text(chart)
+    chart["briefPast"] = render_brief_past(chart)
+    chart["briefForward"] = render_brief_forward(chart)
     return chart
 
 
@@ -585,4 +654,290 @@ def render_text(c: dict) -> str:
     L.append("  " + "; ".join(f"{x['date']} {x['to']}" for x in tr["saturn_ingresses"] if x["date"] < horizon))
     L.append("JUPITER INGRESSES:")
     L.append("  " + "; ".join(f"{x['date']} {x['to']}" for x in tr["jupiter_ingresses"]))
+    return "\n".join(L)
+
+
+def _natal_header(c: dict) -> list[str]:
+    t, a = c["time"], c["ascendant"]
+    se = c["sensitivity"]
+    lg = se["lagna"]
+    L = [
+        f"BIRTH: local {t['local']} at {c['input'].get('place') or ''} "
+        f"({c['input']['lat']:.4f}, {c['input']['lon']:.4f}); offset {t['utc_offset_str']}; "
+        f"UTC {t['utc']}",
+    ]
+    for n in t["notes"]:
+        L.append(f"  TIME NOTE: {n}")
+    L.append(
+        f"SETTINGS: Lahiri ayanamsa {c['settings']['ayanamsa_value']}, whole-sign houses, mean node"
+    )
+    L.append(
+        f"ASC {a['sign']} {a['deg']} {a['nakshatra']} p{a['pada']} | D9 lagna {a['navamsa']} "
+        f"| lagna lord {a['lord']} | MC {c['mc']['sign']} {c['mc']['deg']}"
+    )
+    L.append(
+        f"SENSITIVITY: lagna survives {lg['minutes_earlier_survives']} min earlier / "
+        f"{lg['minutes_later_survives']} min later"
+        + ("  ** TIME-CRITICAL **" if se["time_critical"] else "")
+    )
+    nl = se["navamsa_lagna"]
+    L.append(
+        f"  D9 lagna survives {nl['minutes_earlier_survives']} / {nl['minutes_later_survives']} min; "
+        f"Moon nak {se['moon_nakshatra']['minutes_earlier_survives']} / "
+        f"{se['moon_nakshatra']['minutes_later_survives']} min"
+    )
+    return L
+
+
+def _positions_block(c: dict) -> list[str]:
+    L = ["PLANETS:"]
+    for p in c["planets"]:
+        flags = " ".join(
+            x for x in [
+                p["dignity"].upper() if p["dignity"] else "",
+                "VARGOTTAMA" if p["vargottama"] else "",
+                "R" if p["retrograde"] else "",
+            ] if x
+        )
+        L.append(
+            f"  {p['name']:8s} {p['sign']:11s} {p['deg']:>11s} {p['nakshatra']} p{p['pada']} "
+            f"H{p['house']} D9:{p['navamsa']}  {flags}"
+        )
+    nd = c["nodes"]
+    L.append(
+        f"  node check: mean {nd['mean']['nakshatra']} p{nd['mean']['pada']}, true "
+        f"{nd['true']['nakshatra']} p{nd['true']['pada']}"
+        + (" (PADAS DIFFER)" if nd["padas_differ"] else " (same pada)")
+    )
+    L.append("HOUSES:")
+    for h in c["houses"]:
+        L.append(
+            f"  H{h['house']:2d} {h['sign']:11s} lord {h['lord']:8s} occupants: "
+            f"{', '.join(h['occupants']) or '-'}"
+        )
+    L.append(
+        "LORDSHIPS: "
+        + "; ".join(f"{p} rules {','.join(map(str, hs))}" for p, hs in c["lordships"].items())
+    )
+    L.append("YOGAKARAKA: " + (", ".join(c["yogakaraka"]) or "none"))
+    L.append(
+        "COMBUSTION: "
+        + (
+            "; ".join(
+                f"{x['planet']} {x['distance']}° from Sun (orb {x['orb']})"
+                for x in c["combustion"]
+            )
+            or "none"
+        )
+    )
+    L.append(
+        "CONJUNCTIONS <3°: "
+        + (
+            "; ".join(f"{x['a']}-{x['b']} {x['distance']}°" for x in c["conjunctions"])
+            or "none"
+        )
+    )
+    d = c["dispositors"]
+    L.append("DISPOSITORS: " + "; ".join(f"{p}->{q}" for p, q in d["dispositor_of"].items()))
+    L.append(
+        "  final dispositor tally: "
+        + ", ".join(f"{k} x{v}" for k, v in d["terminus_counts"].items())
+    )
+    ti = c["tithi"]
+    L.append(
+        f"TITHI: {ti['number']} {ti['name']} ({ti['paksha']}), Sun-Moon separation "
+        f"{ti['sun_moon_separation']}°"
+    )
+    return L
+
+
+def render_brief_past(c: dict) -> str:
+    """Foundation brief for the blind past-check: lived periods only, no forward data."""
+    today = c["input"]["today"]
+    L = ["# Foundation brief (past only)", ""]
+    L.extend(_natal_header(c))
+    L.append("")
+    L.extend(_positions_block(c))
+    v = c["vimshottari"]
+    L.append("")
+    L.append(
+        f"VIMSHOTTARI (lived to {today}): Moon in {v['moon_nakshatra']}, birth lord "
+        f"{v['birth_lord']}, {v['elapsed_pct']}% elapsed, balance {v['balance_years']} yr"
+    )
+    for md in v["mahadashas"]:
+        if md["status"] == "future":
+            continue
+        L.append(
+            f"  {md['lord']:8s} {md['start']} -> {md['end']}  age {md['age_start']}-{md['age_end']}"
+            f"  [{md['status']}]"
+        )
+        for ad in md["antardashas"]:
+            if ad["status"] == "future":
+                continue
+            L.append(
+                f"      {md['lord']}-{ad['lord']:8s} {ad['start']} -> {ad['end']}  [{ad['status']}]"
+            )
+    tr = c["transits"]
+    L.append("")
+    L.append("SATURN SPANS relative to natal Moon (through today):")
+    for sp in tr["saturn_spans"]:
+        if sp["start"] > today:
+            continue
+        end = sp["end"] if sp["end"] and sp["end"] <= today else (sp["end"] or "open/beyond")
+        if sp["start"] <= today:
+            L.append(f"  {sp['type']:10s} {sp['start']} -> {end}")
+    past_ing = tr.get("saturn_ingresses_past") or [
+        x for x in tr["saturn_ingresses"] if x["date"] <= today
+    ]
+    L.append("SATURN INGRESSES (birth to today):")
+    L.append("  " + ("; ".join(f"{x['date']} {x['to']}" for x in past_ing) or "none"))
+    conv = tr.get("convergences_past") or []
+    if conv:
+        L.append("")
+        L.append(
+            "CONVERGENCES (antardasha start within 120 days of a Saturn ingress) — "
+            "most testable; put a claim on each:"
+        )
+        for cv in conv:
+            L.append(
+                f"  {cv['dasha']} starts {cv['dasha_start']} ~ {cv['transit']} on "
+                f"{cv['transit_date']} (age {cv['age']})"
+            )
+    L.append("")
+    L.append(
+        f"**Forward data is withheld.** No period after {today}, no future transit, and no "
+        "sade sati window is in this brief. Write Reports 1 and 2, then take the score."
+    )
+    return "\n".join(L)
+
+
+def render_brief_forward(c: dict) -> str:
+    """Forward brief for Reports 3–6: running/upcoming periods + transit lattice."""
+    today = c["input"]["today"]
+    horizon = f"{int(today[:4]) + 10}{today[4:]}"
+    L = ["# Forward brief", ""]
+    L.extend(_natal_header(c))
+    L.append("")
+    L.extend(_positions_block(c))
+
+    v = c["vimshottari"]
+    cur = v.get("current")
+    L.append("")
+    L.append("RUNNING PERIODS:")
+    if cur:
+        L.append(
+            f"  MD {cur['mahadasha']} {cur['md_start']} -> {cur['md_end']}"
+        )
+        L.append(
+            f"  AD {cur['mahadasha']}-{cur['antardasha']} {cur['ad_start']} -> {cur['ad_end']}"
+        )
+        L.append(f"  PD {cur['pratyantara']}")
+        for p in cur.get("pratyantaras") or []:
+            L.append(
+                f"      PD {p['lord']:8s} {p['start']} -> {p['end']}"
+                + ("  <== NOW" if p.get("now") else "")
+            )
+    else:
+        L.append("  (none resolved)")
+
+    L.append("")
+    L.append(f"SUB-PERIODS AHEAD (to ~{horizon}):")
+    for md in v["mahadashas"]:
+        for ad in md["antardashas"]:
+            if ad["end"] > today and ad["start"] < horizon:
+                L.append(
+                    f"  {md['lord']}-{ad['lord']:8s} {ad['start']} -> {ad['end']}  [{ad['status']}]"
+                )
+
+    tr = c["transits"]
+    L.append("")
+    L.append(f"TRANSITS on {tr['date']}:")
+    for b in tr["bodies"]:
+        L.append(
+            f"  {b['body']:8s} {b['sign']:11s} {b['deg']}"
+            f"{' R' if b.get('retro') and b['body'] not in ('Rahu', 'Ketu') else ''}"
+            f"  {b['house_from_moon']} from Moon, {b['house_from_lagna']} from lagna"
+        )
+    st = tr["status"]
+    L.append(
+        f"  sade sati: {'YES, ' + st['sade_sati_phase'] if st['sade_sati'] else 'no'}; "
+        f"ashtama: {'yes' if st['ashtama_shani'] else 'no'}; kantaka from Moon: "
+        f"{'yes' if st['kantaka_shani_from_moon'] else 'no'}; kantaka from lagna: "
+        f"{'yes' if st.get('kantaka_shani_from_lagna') else 'no'}"
+    )
+    if st.get("current_saturn_span"):
+        sp = st["current_saturn_span"]
+        L.append(f"  current Saturn span: {sp['type']} {sp['start']} -> {sp['end'] or 'open'}")
+    if st.get("next_sade_sati"):
+        ns = st["next_sade_sati"]
+        L.append(f"  next sade sati: {ns['start']} -> {ns['end'] or 'open'}")
+
+    sat_fwd = tr.get("saturn_ingresses_forward") or [
+        x for x in tr["saturn_ingresses"] if x["date"] > today
+    ]
+    L.append("SATURN INGRESSES ahead:")
+    L.append("  " + ("; ".join(f"{x['date']} {x['to']}" for x in sat_fwd[:8]) or "none"))
+    L.append("JUPITER INGRESSES ahead:")
+    L.append(
+        "  "
+        + ("; ".join(f"{x['date']} {x['to']}" for x in tr['jupiter_ingresses'][:10]) or "none")
+    )
+    conv = tr.get("convergences_forward") or []
+    if conv:
+        L.append("FORWARD CONVERGENCES (AD start near Saturn ingress):")
+        for cv in conv[:12]:
+            L.append(
+                f"  {cv['dasha']} starts {cv['dasha_start']} ~ {cv['transit']} on "
+                f"{cv['transit_date']} (age {cv['age']})"
+            )
+
+    # Vocation + inner-life lattices for Reports 4–5
+    by_h = {h["house"]: h for h in c["houses"]}
+    h9, h10, h4 = by_h[9], by_h[10], by_h[4]
+    planets = {p["name"]: p for p in c["planets"]}
+    L.append("")
+    L.append("VOCATION LAYER:")
+    L.append(
+        f"  H10 {h10['sign']}, lord {h10['lord']} in H{planets[h10['lord']]['house']} "
+        f"{planets[h10['lord']].get('dignity') or ''}; occupants: "
+        f"{', '.join(h10['occupants']) or 'none'}"
+    )
+    L.append(
+        f"  H9 {h9['sign']}, lord {h9['lord']} in H{planets[h9['lord']]['house']} "
+        f"{planets[h9['lord']].get('dignity') or ''}; occupants: "
+        f"{', '.join(h9['occupants']) or 'none'}"
+    )
+    L.append(
+        f"  Same planet rules H9 and H10: "
+        + (f"yes, {h9['lord']}" if h9["lord"] == h10["lord"] else "no")
+    )
+    L.append(
+        f"  Lagna lord {c['ascendant']['lord']}; D9 lagna {c['navamsa_lagna']['sign']} "
+        f"(lord {c['navamsa_lagna']['lord']})"
+    )
+    L.append(
+        "  D9 placements: "
+        + ", ".join(f"{p['name']} {p['navamsa']}" for p in c["planets"])
+    )
+
+    moon = planets["Moon"]
+    L.append("")
+    L.append("INNER-LIFE LAYER:")
+    L.append(
+        f"  Moon {moon['sign']} {moon['deg']}, H{moon['house']}, {moon['nakshatra']} p{moon['pada']}, "
+        f"dispositor {moon['sign_lord']}"
+    )
+    L.append(
+        f"  H4 {h4['sign']}, lord {h4['lord']} in H{planets[h4['lord']]['house']}; occupants: "
+        f"{', '.join(h4['occupants']) or 'none'}"
+    )
+    L.append(
+        f"  Rahu H{planets['Rahu']['house']} {planets['Rahu']['sign']}, "
+        f"Ketu H{planets['Ketu']['house']} {planets['Ketu']['sign']}"
+    )
+    ti = c["tithi"]
+    L.append(
+        f"  Tithi {ti['name']} ({ti['paksha']}), elongation {ti['sun_moon_separation']}°"
+        + ("; luminaries near opposition" if ti.get("near_opposition") else "")
+    )
     return "\n".join(L)

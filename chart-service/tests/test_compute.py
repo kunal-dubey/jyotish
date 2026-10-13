@@ -46,3 +46,33 @@ def test_wartime_and_dst_offsets():
     assert any("NONEXISTENT" in n for n in gap["time"]["notes"])
     fold = compute_chart(**{**BASE, "date": "2021-10-31", "time": "01:30", "tz": "Europe/London", "lat": 51.5, "lon": -0.12})
     assert any("AMBIGUOUS" in n for n in fold["time"]["notes"])
+
+
+def test_briefs_exist_and_past_withholds_forward():
+    c = compute_chart(**BASE)
+    today = c["input"]["today"]
+    assert "briefPast" in c and "briefForward" in c
+    past = c["briefPast"]
+    assert "Forward data is withheld" in past
+    assert "Foundation brief" in past
+    # No future antardasha rows tagged [future] in the past brief
+    assert "[future]" not in past
+    # Lived periods only — current may appear; after today should not list future MD blocks
+    for md in c["vimshottari"]["mahadashas"]:
+        if md["status"] == "future":
+            # lord line for a wholly-future mahadasha should not appear in past brief
+            assert f"{md['lord']:8s} {md['start']}" not in past
+    fwd = c["briefForward"]
+    assert "Forward brief" in fwd
+    assert "RUNNING PERIODS" in fwd
+    assert "VOCATION LAYER" in fwd
+    assert "INNER-LIFE LAYER" in fwd
+    assert today in past
+
+
+def test_convergences_past_are_dated_on_or_before_today():
+    c = compute_chart(**BASE)
+    today = c["input"]["today"]
+    for cv in c["transits"]["convergences_past"]:
+        assert cv["dasha_start"] <= today
+        assert cv["transit_date"] <= today

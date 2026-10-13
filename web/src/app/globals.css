@@ -558,6 +558,27 @@ body {
   text-decoration: underline; text-underline-offset: 3px;
 }
 
+/* Open report / guidance panel — matches score review panels */
+.report-open {
+  border-color: color-mix(in oklab, var(--gold) 35%, var(--line));
+  background: color-mix(in oklab, var(--paper-2) 40%, var(--paper));
+}
+.report-open .prose {
+  font-size: clamp(1.02rem, 2.4vw, 1.12rem);
+  line-height: 1.65;
+}
+.report-open .prose h2,
+.report-open .prose h3 {
+  margin-top: 1.25rem;
+  font-size: 1.05rem;
+  border: 0;
+  padding-top: 0;
+}
+.report-open .prose h3:first-child,
+.report-open .prose p:first-child {
+  margin-top: 0;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .pulse { animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }

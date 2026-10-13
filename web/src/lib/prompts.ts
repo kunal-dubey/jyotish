@@ -47,8 +47,7 @@ const TIME_SOURCE_LABEL: Record<string, string> = {
   other: "other",
 };
 
-/** The stable first block of every request: who, and the computed chart. Cached. */
-export function chartBlock(r: Reading): string {
+function subjectHeader(r: Reading): string {
   const i = r.intake;
   return `# Subject
 
@@ -57,12 +56,41 @@ Call them: ${i.callName || i.name}
 Birth: ${i.date} at ${i.time} local, ${i.place.label}
 How the time is known: ${TIME_SOURCE_LABEL[i.timeSource] ?? i.timeSource}${i.timeSourceNote ? ` (${i.timeSourceNote})` : ""}
 Birth data confirmed by the subject on: ${r.confirmedAt?.slice(0, 10) ?? "unconfirmed"}
-Today's date: ${r.chart.input.today}
+Today's date: ${r.chart.input.today}`;
+}
+
+/** Full chart dump — fallback for older readings and for guidance/protocol. */
+export function chartBlock(r: Reading): string {
+  return `${subjectHeader(r)}
 
 # Computed chart
 
 \`\`\`
 ${r.chart.text}
+\`\`\``;
+}
+
+/** Past-only foundation brief for the blind past-check. */
+export function pastBriefBlock(r: Reading): string {
+  const brief = r.chart.briefPast || r.chart.text;
+  return `${subjectHeader(r)}
+
+# Foundation brief (past only — treat as authoritative; do not invent degrees or dates)
+
+\`\`\`
+${brief}
+\`\`\``;
+}
+
+/** Forward brief for Reports 3–6 after the past-check is scored. */
+export function forwardBriefBlock(r: Reading): string {
+  const brief = r.chart.briefForward || r.chart.text;
+  return `${subjectHeader(r)}
+
+# Forward brief (natal + running/upcoming periods — treat as authoritative)
+
+\`\`\`
+${brief}
 \`\`\``;
 }
 
@@ -78,7 +106,7 @@ export function optionalContext(r: Reading): string {
     : `# Context the subject supplied at intake\n\nNone was given.`;
 }
 
-export const PAST_STAGE = `Write the following, in order, and nothing else.
+export const PAST_STAGE = `Write the following, in order, and nothing else. Use only the foundation brief above. Forward periods are withheld on purpose; do not invent them.
 
 ## Before we begin
 
@@ -86,19 +114,19 @@ Three short parts.
 
 1. **Contamination disclosure.** State what you were given: the name, birth data and how the time is known, nothing more. The app withheld any other context the subject supplied until after the past-check is scored. Then be honest about the remaining leak: you know the subject's approximate era, country and age, and generic life-stage events (schooling, leaving home, first work, marriage) cluster at predictable ages. Say that claims which merely track the calendar of an ordinary life are weak evidence, and that the reader should weigh them accordingly.
 2. **The contract.** State the epistemic contract in your own words, briefly.
-3. **Computation notes.** State the ascendant and its degree and how many minutes of birth-time error the lagna survives in each direction; if fewer than ten in either direction, say the whole analysis is time-critical. Relate this to how the time is known: a family recollection or a suspiciously round figure carries an error bar, so say how wide it plausibly is and what it would change. Note the navamsa lagna's own margin, since Report 4 uses it. Name the node convention (mean) and say whether the true node lands in a different pada. State any computed value you believe is in error, or say you found none.
+3. **Computation notes.** From the brief: state the ascendant and its degree and how many minutes of birth-time error the lagna survives in each direction; if fewer than ten in either direction, say the whole analysis is time-critical. Relate this to how the time is known. Note the navamsa lagna's margin. Name the node convention (mean) and whether the true node lands in a different pada. State any computed value you believe is in error, or say you found none.
 
 ## Report 1: Foundation
 
-Verify before using. Confirm every house lordship from the computed lagna. Identify each planet's functional nature for this ascendant, and derive it rather than recalling it: lords of the angles (1, 4, 7, 10) and trines (5, 9) lean benefic; lords of 3, 6 and 11 lean malefic; lords of 8 and 12 are difficult; a planet ruling both an angle and a trine is the yogakaraka, which exists only for Taurus and Libra (Saturn), Cancer and Leo (Mars), and Capricorn and Aquarius (Venus). Note where the classical schools disagree about a particular lord for this lagna, and say which reading you adopted and why.
+Verify from the brief. Confirm every house lordship from the computed lagna. Identify each planet's functional nature for this ascendant, and derive it rather than recalling it: lords of the angles (1, 4, 7, 10) and trines (5, 9) lean benefic; lords of 3, 6 and 11 lean malefic; lords of 8 and 12 are difficult; a planet ruling both an angle and a trine is the yogakaraka, which exists only for Taurus and Libra (Saturn), Cancer and Leo (Mars), and Capricorn and Aquarius (Venus). Note where the classical schools disagree about a particular lord for this lagna, and say which reading you adopted and why.
 
-Cover dignity, combustion, retrogression, vargottama status, and every conjunction inside three degrees. Then state plainly which three placements carry the most weight and why. Look for the chart's centre of gravity: trace dispositors upward and see whether many roads lead to one planet, because that concentration, where it exists, governs more than any single yoga.
+Cover dignity, combustion, retrogression, vargottama status, and every conjunction inside three degrees listed in the brief. Then state plainly which three placements carry the most weight and why. Use the dispositor tally in the brief as the centre-of-gravity check.
 
 ## Report 2: The blind past-check
 
-Take the mahadashas the subject has already lived. For each, describe what that period should have looked like: its texture, its principal difficulties, what it built, what it withheld. Then date the turns by antardasha, giving each sub-period a claim specific enough to be wrong. Where a major transit coincides with a sub-period (Saturn spans relative to the Moon are listed in the data), say so, since the convergences are where the method is most testable. Then do the same, more briefly, for the two or three most recent completed sub-periods.
+Take the lived mahadashas and antardashas in the brief (already truncated at today). For each mahadasha, describe texture, principal difficulties, what it built, what it withheld. Date the turns by antardasha with claims specific enough to be wrong. The brief lists CONVERGENCES where an antardasha start meets a Saturn ingress within four months — put a claim on each of those. Then briefly cover the two or three most recent completed sub-periods.
 
-Every claim must be falsifiable. "A period of growth and challenge" is worthless. "A rupture in the ground of childhood between ages eight and eleven" can be scored. Include at least one claim you would expect to be wrong if the method is empty, and mark it.
+Every claim must be falsifiable. "A period of growth and challenge" is worthless. Include at least one claim you would expect to be wrong if the method is empty, and mark it.
 
 **Claim format, required.** The subject will score each claim in a form the app builds from your text, so write every scorable claim as its own list item in exactly this shape, numbered sequentially across the whole report:
 
@@ -106,7 +134,7 @@ Every claim must be falsifiable. "A period of growth and challenge" is worthless
 
 Put the period label between single asterisks after the number. Append \` [CONTROL]\` to the end of a claim you would expect to be wrong if the method is empty. Prose framing around the claims is welcome; only the numbered items are scored. Aim for roughly fifteen to twenty-five claims.
 
-End with one short paragraph asking the subject to score each claim right, wrong, or unclear before reading anything further, and explaining that the score is the only honest measure of how much weight the remaining reports deserve. Do not write any forward-looking material.`;
+End with one short paragraph asking the subject to score each claim right, wrong, or unclear before reading anything further. Do not write any forward-looking material.`;
 
 export function scoreBlock(claims: Claim[], scores: Record<string, Score>, notes: Record<string, string>): string {
   const rows = claims.map((c) => {
@@ -131,45 +159,43 @@ Control claims: ${control.join("; ") || "none were marked"}.
 ${rows.join("\n")}`;
 }
 
-export const REPORTS_STAGE = `The subject has scored the past-check. Write the following, in order.
+export const REPORTS_STAGE = `The subject has scored the past-check. Write the following, in order. Use the forward brief and the score digest; do not re-derive dasha or transit tables from memory.
 
 ## What the score implies
 
-Say what the score implies, including the case where it implies very little. Consider how many claims were merely calendar-typical (and so weak evidence even when right), how the control claims fared, and whether the misses cluster in one period or one kind of claim, which could point to a birth-time error rather than an empty method. Then adjust your confidence in Reports 3 through 5 out loud, and write them at the volume the score supports rather than at the same volume regardless.
+Say what the score implies, including the case where it implies very little. Consider calendar-typical claims, how the control claims fared, and whether misses cluster in one period or kind of claim. Then adjust your confidence in Reports 3 through 5 out loud, and write them at the volume the score supports.
 
 You now also have the context the subject supplied at intake. Use it to sharpen Reports 4 and 5, and do not let it leak backward into a re-reading of the past-check.
 
 ## Report 3: The current timeline
 
-The running mahadasha and antardasha, read properly.
+Read the RUNNING PERIODS, SUB-PERIODS AHEAD, TRANSITS, and FORWARD CONVERGENCES from the brief.
 
-- The mahadasha lord's condition and what it rules from this lagna, and how this period differs in kind from the one before it. Name the handover: what ended on that date, what began.
-- The antardasha lord: what it rules, where it sits, what the pairing opens and what it asks for.
-- The window to the antardasha's end in practical terms: what is available, what is likely to stall, where the friction sits, and which pratyantara stretches inside it are the grinding ones.
-- The sequence beyond, sub-period by sub-period, with any stretch that combines an ambitious dasha lord with a heavy transit flagged explicitly.
-- Current transits, as computed. Saturn and Jupiter by sidereal position, checked against the natal Moon and the lagna. State whether sade sati, kantaka Shani, or ashtama Shani is running. If nothing is running, say so plainly rather than inventing pressure. Where two schools define a transit affliction differently (kantaka from the Moon or from the lagna, for example), give both and decline to choose.
+- The mahadasha lord's condition and what it rules from this lagna, and how this period differs from the one before it.
+- The antardasha lord: what it rules, where it sits, what the pairing opens and asks for.
+- The window to the antardasha's end; which pratyantara stretches inside it are the grinding ones (from the brief).
+- The sequence beyond, flagging stretches that meet a listed convergence.
+- Current transits from the brief. State whether sade sati, kantaka Shani, or ashtama Shani is running. If nothing is running, say so. Where kantaka is defined from Moon vs lagna differently, give both and decline to choose.
 
 ## Report 4: Life direction and vocation
 
-Read from the 10th house and its lord, the 9th and its lord, the lagna lord, and the navamsa lagna lord. Address the tension between whatever the 9th wants and whatever the 10th demands, and note when the same planet governs both, since that folds the tension inward instead of dissolving it.
+Use the VOCATION LAYER in the brief (H9, H10, lagna lord, D9 lagna). Address the tension between the 9th and the 10th, and note when the same planet governs both.
 
-Say what kind of work the chart supports and what kind it resists. Be specific where the significations are specific. Where the chart supports two incompatible readings, institutional against independent, say both and let them stand. Then state what the chart cannot determine: industry, employer, income, and whether any of it was pursued.
+Say what kind of work the chart supports and resists. Where two incompatible readings stand, say both. State what the chart cannot determine: industry, employer, income, and whether any of it was pursued.
 
 ## Report 5: Self-fulfillment and the inner life
 
-Draw on the Moon by sign, house and nakshatra; the 4th house and its occupants; Ketu and Rahu by house; and the Sun–Moon relationship at birth, which the tithi gives you.
-
-Cover the sources of inner steadiness and its absence. Read each nakshatra for both its gift and its shadow, and give the shadow the same word count. Where a node sits in a house it is classically at home in, read it that way rather than importing the difficulty it would carry elsewhere. If the luminaries were at or near opposition, give the honest version: it is a real split, it does not resolve, and the useful counsel is administrative rather than mystical.
+Use the INNER-LIFE LAYER in the brief (Moon, H4, nodes, tithi). Cover sources of inner steadiness and its absence. Read nakshatra gift and shadow with equal weight. If the luminaries are near opposition, give the honest version: a real split that does not resolve; counsel is administrative rather than mystical.
 
 ## Report 6: Confidence audit
 
-Sort everything written in Reports 1 through 5 into three tiers.
+Sort what you wrote in Reports 3 through 5 (and what the score implies about the past-check) into three tiers.
 
 - **Structural.** Holds regardless of school: lordships, dignities, dasha arithmetic, unambiguous placements, computed transits.
-- **Interpretive.** Follows from classical significations but depends on authority and method. Name the forks and say which branch you took.
-- **Ornamental.** Reads well, rests on very little. Quote your own lines here, verbatim, from any of the reports. If this tier is empty you have not been honest, because every reading of this length contains some.
+- **Interpretive.** Follows from classical significations but depends on authority and method. Name the forks.
+- **Ornamental.** Reads well, rests on very little. Quote your own lines verbatim. If this tier is empty you have not been honest.
 
-Then answer directly: what can be read with reasonable confidence, what cannot be read at all, and one thing you were tempted to claim and decided you could not support. Close by naming the unproven premise underneath everything, that the system corresponds to lived lives at all, and pointing back to the past-check score as the only instrument either of you holds for testing it.`;
+Then answer directly: what can be read with reasonable confidence, what cannot, and one temptation you declined. Close on the unproven premise and the past-check score as the only instrument for testing it.`;
 
 export const GUIDANCE_STAGE = `Write Stage 4: guidance in plain language.
 

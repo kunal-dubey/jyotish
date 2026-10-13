@@ -27,6 +27,26 @@ function from12(h12: number, period: "AM" | "PM"): number {
   return h === 12 ? 12 : h + 12;
 }
 
+/** Hour is complete when two digits are typed, or a single digit 2–9 (can't start 13–19). */
+function hourComplete(digits: string): boolean {
+  if (digits.length >= 2) return true;
+  if (digits.length === 1) {
+    const d = Number(digits);
+    return d >= 2 && d <= 9;
+  }
+  return false;
+}
+
+/** Minute is complete at two digits, or a first digit 6–9 (can't be 60+). */
+function minuteComplete(digits: string): boolean {
+  if (digits.length >= 2) return true;
+  if (digits.length === 1) {
+    const d = Number(digits);
+    return d >= 6 && d <= 9;
+  }
+  return false;
+}
+
 export default function TimeField({
   value,
   onChange,
@@ -42,6 +62,9 @@ export default function TimeField({
   const [minute, setMinute] = useState(parsed ? pad(parsed.m) : "");
   const [period, setPeriod] = useState<"AM" | "PM">(parsed ? initial.period : "AM");
   const hourRef = useRef<HTMLInputElement>(null);
+  const minuteRef = useRef<HTMLInputElement>(null);
+  const periodRef = useRef<HTMLSelectElement>(null);
+  const syncing = useRef(false);
 
   useEffect(() => {
     const p = parseTime(value);
@@ -52,10 +75,14 @@ export default function TimeField({
       }
       return;
     }
+    syncing.current = true;
     const t = to12(p.h24);
     setHour(String(t.h12));
     setMinute(pad(p.m));
     setPeriod(t.period);
+    queueMicrotask(() => {
+      syncing.current = false;
+    });
   }, [value]);
 
   useEffect(() => {
@@ -73,6 +100,43 @@ export default function TimeField({
     onChange(`${pad(from12(h12, per))}:${pad(m)}`);
   }
 
+  function onHourChange(raw: string) {
+    const next = raw.replace(/\D/g, "").slice(0, 2);
+    // Reject impossible two-digit hours > 12
+    if (next.length === 2 && Number(next) > 12) {
+      const clamped = next.slice(0, 1);
+      setHour(clamped);
+      if (hourComplete(clamped)) {
+        minuteRef.current?.focus();
+        minuteRef.current?.select();
+      }
+      return;
+    }
+    setHour(next);
+    if (minute) commit(next, minute, period);
+    if (hourComplete(next)) {
+      minuteRef.current?.focus();
+      minuteRef.current?.select();
+    }
+  }
+
+  function onMinuteChange(raw: string) {
+    const next = raw.replace(/\D/g, "").slice(0, 2);
+    if (next.length === 2 && Number(next) > 59) {
+      const clamped = next.slice(0, 1);
+      setMinute(clamped);
+      if (minuteComplete(clamped)) {
+        periodRef.current?.focus();
+      }
+      return;
+    }
+    setMinute(next);
+    if (hour) commit(hour, next, period);
+    if (minuteComplete(next)) {
+      periodRef.current?.focus();
+    }
+  }
+
   return (
     <div className="time-simple">
       <div className="time-simple-row">
@@ -86,13 +150,9 @@ export default function TimeField({
             maxLength={2}
             placeholder="5"
             value={hour}
-            onChange={(e) => {
-              const next = e.target.value.replace(/\D/g, "").slice(0, 2);
-              setHour(next);
-              commit(next, minute, period);
-            }}
+            onChange={(e) => onHourChange(e.target.value)}
             onBlur={() => {
-              if (hour === "") return;
+              if (syncing.current || hour === "") return;
               const h = Number(hour);
               if (!Number.isFinite(h) || h < 1 || h > 12) {
                 setHour(parsed ? String(to12(parsed.h24).h12) : "");
@@ -112,19 +172,16 @@ export default function TimeField({
         <label className="time-simple-unit">
           <span className="time-simple-label">Minute</span>
           <input
+            ref={minuteRef}
             className="time-simple-input"
             inputMode="numeric"
             pattern="[0-9]*"
             maxLength={2}
             placeholder="35"
             value={minute}
-            onChange={(e) => {
-              const next = e.target.value.replace(/\D/g, "").slice(0, 2);
-              setMinute(next);
-              commit(hour, next, period);
-            }}
+            onChange={(e) => onMinuteChange(e.target.value)}
             onBlur={() => {
-              if (minute === "") return;
+              if (syncing.current || minute === "") return;
               const m = Number(minute);
               if (!Number.isFinite(m) || m > 59) {
                 setMinute(parsed ? pad(parsed.m) : "");
@@ -141,6 +198,7 @@ export default function TimeField({
         <label className="time-simple-unit time-simple-period">
           <span className="time-simple-label">AM / PM</span>
           <select
+            ref={periodRef}
             className="time-simple-select"
             value={period}
             aria-label="AM or PM"

@@ -18,6 +18,17 @@ export function llmModel(): string {
   return usingOpenRouter() ? "anthropic/claude-opus-5.5" : "claude-opus-5-5";
 }
 
+/** Optional per-stage model overrides (e.g. faster models for past/reports). */
+export function llmModelForStage(stage: "past" | "reports" | "guidance" | "protocol"): string {
+  if (stage === "past" && process.env.ANTHROPIC_MODEL_PAST?.trim()) {
+    return process.env.ANTHROPIC_MODEL_PAST.trim();
+  }
+  if (stage === "reports" && process.env.ANTHROPIC_MODEL_REPORTS?.trim()) {
+    return process.env.ANTHROPIC_MODEL_REPORTS.trim();
+  }
+  return llmModel();
+}
+
 /** Anthropic SDK client — direct Anthropic, or OpenRouter when OPENROUTER_API_KEY is set. */
 export function getLlmClient(): Anthropic {
   const openrouter = process.env.OPENROUTER_API_KEY?.trim();

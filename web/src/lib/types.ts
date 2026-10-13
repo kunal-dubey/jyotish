@@ -89,6 +89,10 @@ export type Chart = {
     saturn_spans: SaturnSpan[];
   };
   text: string;
+  /** Past-only foundation brief for the blind past-check stage. */
+  briefPast?: string;
+  /** Forward brief for Reports 3–6 after Gate B. */
+  briefForward?: string;
 };
 
 export type TimeSource = "certificate" | "hospital_record" | "parent_memory" | "rounded" | "guess" | "other";

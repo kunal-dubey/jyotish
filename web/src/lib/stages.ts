@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { getLlmClient, hasLlmCredentials, llmAuthErrorHint, llmModel, usingOpenRouter } from "./llm";
+import { getLlmClient, hasLlmCredentials, llmAuthErrorHint, llmModelForStage, usingOpenRouter } from "./llm";
 import { ProtocolSchema } from "./protocolSchema";
 import {
   GUIDANCE_STAGE,
@@ -9,8 +9,10 @@ import {
   REPORTS_STAGE,
   SYSTEM_PROMPT,
   chartBlock,
+  forwardBriefBlock,
   optionalContext,
   parseClaims,
+  pastBriefBlock,
   protocolStage,
   scoreBlock,
 } from "./prompts";
@@ -33,6 +35,21 @@ const STAGE_OUTPUT: Record<StageName, keyof Reading["outputs"]> = {
   reports: "reports",
   guidance: "guidance",
   protocol: "protocol",
+};
+
+/**
+ * Per-stage generation knobs.
+ * Adaptive thinking counts against max_tokens — keep headroom so Report 2 claims
+ * are not truncated (a 12k ceiling was cutting past mid-draft and saving nothing).
+ */
+const STAGE_LLM: Record<
+  StageName,
+  { effort: "low" | "medium" | "high"; maxTokens: number }
+> = {
+  past: { effort: "medium", maxTokens: 32000 },
+  reports: { effort: "medium", maxTokens: 32000 },
+  guidance: { effort: "high", maxTokens: 48000 },
+  protocol: { effort: "high", maxTokens: 48000 },
 };
 
 /** True when this stage already has a stored output (reuse; do not call Claude). */
@@ -68,23 +85,34 @@ export function seasonPeriods(r: Reading) {
 }
 
 function stageContent(r: Reading, stage: StageName): Anthropic.Beta.BetaContentBlockParam[] {
-  const blocks: Anthropic.Beta.BetaContentBlockParam[] = [
-    { type: "text", text: chartBlock(r), cache_control: { type: "ephemeral" } },
-  ];
-  const add = (text: string) => blocks.push({ type: "text", text });
+  const blocks: Anthropic.Beta.BetaContentBlockParam[] = [];
+  const add = (text: string, cache = false) =>
+    blocks.push(
+      cache
+        ? { type: "text", text, cache_control: { type: "ephemeral" } }
+        : { type: "text", text },
+    );
   const o = r.outputs;
 
   if (stage === "past") {
+    add(pastBriefBlock(r), true);
     add(PAST_STAGE);
     return blocks;
   }
-  add(`# Reports 1 and 2, as delivered\n\n${o.past}`);
-  add(scoreBlock(o.claims ?? [], r.scores, r.scoreNotes));
-  add(optionalContext(r));
+
   if (stage === "reports") {
+    add(forwardBriefBlock(r), true);
+    add(scoreBlock(o.claims ?? [], r.scores, r.scoreNotes));
+    add(optionalContext(r));
     add(REPORTS_STAGE);
     return blocks;
   }
+
+  // guidance / protocol: natal + prior outputs (prefer forward brief when present)
+  add(r.chart.briefForward ? forwardBriefBlock(r) : chartBlock(r), true);
+  add(`# Reports 1 and 2 summary\n\nPast-check was scored. Claims and scores follow for calibration context.\n`);
+  add(scoreBlock(o.claims ?? [], r.scores, r.scoreNotes));
+  add(optionalContext(r));
   add(`# Reports 3 to 6, as delivered\n\n${o.reports}`);
   if (stage === "guidance") {
     add(GUIDANCE_STAGE);
@@ -119,18 +147,19 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
       );
     client ??= getLlmClient();
     const isProtocol = stage === "protocol";
+    const knobs = STAGE_LLM[stage];
     // Anthropic accepts fallbacks: "default"; OpenRouter only accepts an array of { model }.
     // Omit Anthropic server-side fallback when routing via OpenRouter (provider failover still applies).
     const anthropicFallback = usingOpenRouter()
       ? {}
       : { betas: ["server-side-fallback-2026-07-01" as const], fallbacks: "default" as const };
     const stream = client.beta.messages.stream({
-      model: llmModel(),
-      max_tokens: 64000,
+      model: llmModelForStage(stage),
+      max_tokens: knobs.maxTokens,
       ...anthropicFallback,
       thinking: { type: "adaptive", display: "summarized" },
       output_config: {
-        effort: "high",
+        effort: knobs.effort,
         ...(isProtocol ? { format: zodOutputFormat(ProtocolSchema) } : {}),
       },
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
@@ -158,7 +187,13 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
 
     if (stage === "past") {
       const claims = parseClaims(text);
-      if (claims.length === 0) throw new Error("Report 2 came back without numbered claims to score. Regenerate.");
+      if (claims.length === 0) {
+        throw new Error(
+          text.trim()
+            ? "Report 2 came back without numbered claims to score (C1, C2, …). Regenerate."
+            : "The model returned no text for the past-check (likely truncated while thinking). Regenerate.",
+        );
+      }
       r.outputs = { past: text, claims };
       r.scores = {};
       r.scoreNotes = {};
