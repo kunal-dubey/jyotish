@@ -16,7 +16,7 @@ Set on `jyotish-web`:
 | Name | Notes |
 | --- | --- |
 | `OPENROUTER_API_KEY` | from local `.env` |
-| `ANTHROPIC_MODEL` | `anthropic/claude-opus-5.5` |
+| `ANTHROPIC_MODEL` | `anthropic/claude-sonnet-5.5` (thinking off on OpenRouter unless `OPENROUTER_THINKING=1`) |
 | `ANTHROPIC_BASE_URL` | `https://openrouter.ai/api` |
 | `AUTH_SECRET` | random hex |
 | `CHART_SERVICE_URL` | `https://jyotish-chart-theta.vercel.app` |

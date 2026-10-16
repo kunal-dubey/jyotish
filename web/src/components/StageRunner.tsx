@@ -46,6 +46,16 @@ const QUIET_STREAM: Partial<Record<StageName, { title: string; steps: string[] }
       "Almost ready",
     ],
   },
+  protocol: {
+    title: "Building the living protocol",
+    steps: [
+      "Shaping the seven-day rhythm",
+      "Writing the decade's seasons",
+      "Packing counsel and remedies",
+      "Choosing palette and type",
+      "Almost ready",
+    ],
+  },
 };
 
 function quietStepIndex(thinkingLen: number, textLen: number, elapsedSec: number): number {
@@ -95,6 +105,8 @@ export default function StageRunner({
   const frame = useRef<number>(0);
   const startedAt = useRef<number>(0);
   const maxBar = useRef(8);
+  const abortRef = useRef<AbortController | null>(null);
+  const recoveredRef = useRef(false);
 
   const busyElsewhere = !!r.generating && r.generating !== stage && !running;
   const generatingHere = running || r.generating === stage;
@@ -116,6 +128,32 @@ export default function StageRunner({
     }, 400);
     return () => clearInterval(id);
   }, [generatingHere, quiet]);
+
+  // Stream can stall after the server already saved (common on long Vercel responses).
+  // Poll the reading and finish the UI once this stage's output is present.
+  useEffect(() => {
+    if (!running) return;
+    recoveredRef.current = false;
+    const poll = window.setInterval(() => {
+      api.get(r.id).then((x) => {
+        if (recoveredRef.current || x.generating) return;
+        const saved =
+          (stage === "past" && !!(x.outputs.claims && x.outputs.claims.length > 0)) ||
+          (stage === "reports" && !!x.outputs.reports) ||
+          (stage === "guidance" && !!x.outputs.guidance) ||
+          (stage === "protocol" && !!x.outputs.protocol);
+        if (!saved) return;
+        recoveredRef.current = true;
+        abortRef.current?.abort();
+        maxBar.current = 100;
+        setBarPct(100);
+        setRunning(false);
+        startedAt.current = 0;
+        onReading(x);
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [running, r.id, stage, onReading]);
 
   function flush() {
     frame.current = 0;
@@ -152,23 +190,40 @@ export default function StageRunner({
     setBarPct(8);
     startedAt.current = Date.now();
     setRunning(true);
-    await runStage(r.id, stage, {
-      onThinking: (t) => {
-        pending.current.thinking += t;
-        schedule();
-      },
-      onText: (t) => {
-        pending.current.text += t;
-        schedule();
-      },
-      onDone: (next) => {
-        maxBar.current = 100;
-        setBarPct(100);
-        onReading(next);
-      },
-      onError: (m) => setErr(m),
-    });
-    setRunning(false);
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    try {
+      await runStage(
+        r.id,
+        stage,
+        {
+          onThinking: (t) => {
+            pending.current.thinking += t;
+            schedule();
+          },
+          onText: (t) => {
+            pending.current.text += t;
+            schedule();
+          },
+          onDone: (next) => {
+            if (recoveredRef.current) return;
+            recoveredRef.current = true;
+            maxBar.current = 100;
+            setBarPct(100);
+            onReading(next);
+          },
+          onError: (m) => {
+            if (recoveredRef.current || ac.signal.aborted) return;
+            setErr(m);
+          },
+        },
+        ac.signal,
+      );
+    } catch (e) {
+      if (!ac.signal.aborted && !recoveredRef.current) setErr((e as Error).message);
+    }
+    if (!recoveredRef.current) setRunning(false);
     startedAt.current = 0;
   }
 

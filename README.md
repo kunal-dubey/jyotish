@@ -31,13 +31,13 @@ cp web/.env.example web/.env.local
 Edit `web/.env.local`:
 
 ```bash
-# OpenRouter (recommended)
+# OpenRouter (recommended) — Sonnet for claim quality; thinking off by default (Vercel 300s)
 OPENROUTER_API_KEY=sk-or-...
-ANTHROPIC_MODEL=anthropic/claude-opus-5.5
+ANTHROPIC_MODEL=anthropic/claude-sonnet-5.5
 
 # Or Anthropic direct instead:
 # ANTHROPIC_API_KEY=sk-ant-...
-# ANTHROPIC_MODEL=claude-opus-5-5
+# ANTHROPIC_MODEL=claude-sonnet-4-5
 
 CHART_SERVICE_URL=http://127.0.0.1:8765
 MONGODB_URI=mongodb://127.0.0.1:27017/jyotish
@@ -112,7 +112,7 @@ prompts/         The original prompt document.
 
 The server refuses out-of-order stages. Optional intake context (occupation, practice, question) is withheld from the model until the score is submitted.
 
-Each stage is one streamed call (default `anthropic/claude-opus-5.5` via OpenRouter, or `claude-opus-5-5` direct) with adaptive thinking at high effort. Direct Anthropic also sends server-side refusal fallback (`fallbacks: "default"`); OpenRouter omits that Anthropic-only field. Report 2’s numbered claims are parsed into the interactive scoring UI.
+Each stage is one streamed call. Default via OpenRouter is `anthropic/claude-sonnet-5.5` (strong enough for falsifiable past-check claims). Adaptive thinking stays off on OpenRouter unless `OPENROUTER_THINKING=1`, so stages fit under Vercel’s 300s ceiling; on 429 the app falls back to Gemini Flash → DeepSeek → a free model. Direct Anthropic keeps adaptive thinking. Report 2’s numbered claims are parsed into the interactive scoring UI.
 
 **The protocol file.** The model returns structured JSON; `web/src/lib/protocolHtml.ts` builds a self-contained HTML page that recomputes weekday, dashas, season, and Saturn countdown from the device date on each open.
 
@@ -122,6 +122,7 @@ Each stage is one streamed call (default `anthropic/claude-opus-5.5` via OpenRou
 - Prompts: `web/src/lib/prompts.ts`
 - Protocol template: `web/src/lib/protocol/client.{css,js}`, `web/src/lib/protocolHtml.ts`
 - Chart maths: `chart-service/src/chart_service/compute.py`, tests in `chart-service/tests/`
+- UI tokens & patterns: [`docs/ui-style-guide.md`](docs/ui-style-guide.md) (source: `web/src/app/globals.css`)
 
 ## Notes
 

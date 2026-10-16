@@ -47,22 +47,29 @@ export default function TimeField({
   const [period, setPeriod] = useState<"AM" | "PM">(parsed ? initial.period : "AM");
   const hourRef = useRef<HTMLInputElement>(null);
   const minuteRef = useRef<HTMLInputElement>(null);
-  const periodRef = useRef<HTMLSelectElement>(null);
+  /** Sync drafts so blur after auto-advance sees the just-typed digit (e.g. 10–12). */
+  const hourDraft = useRef(hour);
+  const minuteDraft = useRef(minute);
+  const periodDraft = useRef(period);
   /** Which field the user is editing — skip parent→local sync while typing. */
   const focused = useRef<"hour" | "minute" | null>(null);
 
-  // Sync from parent only when neither field is being typed into.
   useEffect(() => {
     if (focused.current) return;
     const p = parseTime(value);
     if (!p) {
       if (!value) {
+        hourDraft.current = "";
+        minuteDraft.current = "";
         setHour("");
         setMinute("");
       }
       return;
     }
     const t = to12(p.h24);
+    hourDraft.current = String(t.h12);
+    minuteDraft.current = pad(p.m);
+    periodDraft.current = t.period;
     setHour(String(t.h12));
     setMinute(pad(p.m));
     setPeriod(t.period);
@@ -88,9 +95,11 @@ export default function TimeField({
     let next = digitsOnly(raw, 2);
     if (next.length === 2 && Number(next) > 12) next = next.slice(0, 1);
     if (next.length === 1 && next === "0") next = "";
+    hourDraft.current = next;
     setHour(next);
-    // Only commit once both parts look complete — never rewrite minutes while typing hour.
-    if (next.length === 2 && minute.length > 0) commit(next, minute, period);
+    if (next.length === 2 && minuteDraft.current.length > 0) {
+      commit(next, minuteDraft.current, periodDraft.current);
+    }
     if (next.length === 2) {
       minuteRef.current?.focus();
       minuteRef.current?.select();
@@ -100,111 +109,109 @@ export default function TimeField({
   function onMinuteChange(raw: string) {
     let next = digitsOnly(raw, 2);
     if (next.length === 2 && Number(next) > 59) next = next.slice(0, 1);
+    minuteDraft.current = next;
     setMinute(next);
-    // Commit with unpadded digits; pad only on blur so "3"+"5" can become "35".
-    if (hour !== "" && next.length === 2) commit(hour, next, period);
-    if (next.length === 2) periodRef.current?.focus();
+    if (hourDraft.current !== "" && next.length === 2) {
+      commit(hourDraft.current, next, periodDraft.current);
+    }
   }
 
   function blurHour() {
     focused.current = null;
-    if (hour === "") {
-      if (minute === "" && value) onChange("");
+    const hStr = hourDraft.current;
+    if (hStr === "") {
+      if (minuteDraft.current === "" && value) onChange("");
       return;
     }
-    const h = Number(hour);
+    const h = Number(hStr);
     if (!Number.isFinite(h) || h < 1 || h > 12) {
-      setHour(parsed ? String(to12(parsed.h24).h12) : "");
+      const fallback = parsed ? String(to12(parsed.h24).h12) : "";
+      hourDraft.current = fallback;
+      setHour(fallback);
       return;
     }
-    setHour(String(h));
-    commit(String(h), minute, period);
+    const normalized = String(h);
+    hourDraft.current = normalized;
+    setHour(normalized);
+    commit(normalized, minuteDraft.current, periodDraft.current);
   }
 
   function blurMinute() {
     focused.current = null;
-    if (minute === "") {
-      if (hour === "" && value) onChange("");
+    const mStr = minuteDraft.current;
+    if (mStr === "") {
+      if (hourDraft.current === "" && value) onChange("");
       return;
     }
-    const m = Number(minute);
+    const m = Number(mStr);
     if (!Number.isFinite(m) || m > 59) {
-      setMinute(parsed ? pad(parsed.m) : "");
+      const fallback = parsed ? pad(parsed.m) : "";
+      minuteDraft.current = fallback;
+      setMinute(fallback);
       return;
     }
     const next = pad(m);
+    minuteDraft.current = next;
     setMinute(next);
-    commit(hour, next, period);
+    commit(hourDraft.current, next, periodDraft.current);
+  }
+
+  function setMeridiem(next: "AM" | "PM") {
+    periodDraft.current = next;
+    setPeriod(next);
+    commit(hourDraft.current, minuteDraft.current, next);
   }
 
   return (
-    <div className="time-simple">
-      <div className="time-simple-row">
-        <label className="time-simple-unit">
-          <span className="time-simple-label">Hour</span>
-          <input
-            ref={hourRef}
-            className="time-simple-input"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={2}
-            placeholder="5"
-            value={hour}
-            onFocus={() => {
-              focused.current = "hour";
-            }}
-            onChange={(e) => onHourChange(e.target.value)}
-            onBlur={blurHour}
-          />
-          <span className="time-simple-hint">1–12</span>
-        </label>
-
-        <span className="time-simple-colon" aria-hidden>
+    <div className="time-field" role="group" aria-label="Time of birth">
+      <div className="time-field-row">
+        <input
+          ref={hourRef}
+          className="time-field-digit"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          placeholder="—"
+          aria-label="Hour"
+          value={hour}
+          onFocus={() => {
+            focused.current = "hour";
+          }}
+          onChange={(e) => onHourChange(e.target.value)}
+          onBlur={blurHour}
+        />
+        <span className="time-field-colon" aria-hidden>
           :
         </span>
-
-        <label className="time-simple-unit">
-          <span className="time-simple-label">Minute</span>
-          <input
-            ref={minuteRef}
-            className="time-simple-input"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={2}
-            placeholder="35"
-            value={minute}
-            onFocus={() => {
-              focused.current = "minute";
-            }}
-            onChange={(e) => onMinuteChange(e.target.value)}
-            onBlur={blurMinute}
-          />
-          <span className="time-simple-hint">0–59</span>
-        </label>
-
-        <label className="time-simple-unit time-simple-period">
-          <span className="time-simple-label">AM / PM</span>
-          <select
-            ref={periodRef}
-            className="time-simple-select"
-            value={period}
-            aria-label="AM or PM"
-            onChange={(e) => {
-              const next = e.target.value === "PM" ? "PM" : "AM";
-              setPeriod(next);
-              commit(hour, minute, next);
-            }}
-          >
-            <option value="AM">AM</option>
-            <option value="PM">PM</option>
-          </select>
-          <span className="time-simple-hint">required</span>
-        </label>
+        <input
+          ref={minuteRef}
+          className="time-field-digit"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          placeholder="—"
+          aria-label="Minute"
+          value={minute}
+          onFocus={() => {
+            focused.current = "minute";
+          }}
+          onChange={(e) => onMinuteChange(e.target.value)}
+          onBlur={blurMinute}
+        />
+        <div className="choice time-field-period" role="radiogroup" aria-label="AM or PM">
+          {(["AM", "PM"] as const).map((p) => (
+            <label key={p}>
+              <input
+                type="radio"
+                name="time-period"
+                checked={period === p}
+                onChange={() => setMeridiem(p)}
+              />
+              {p}
+            </label>
+          ))}
+        </div>
       </div>
-      <p className="time-simple-note muted">
-        Local clock. Type hour then minutes
-        {parsed ? ` · saved as ${pad(parsed.h24)}:${pad(parsed.m)}` : ""}.
-      </p>
     </div>
   );
 }

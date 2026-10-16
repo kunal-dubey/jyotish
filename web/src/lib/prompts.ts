@@ -106,35 +106,37 @@ export function optionalContext(r: Reading): string {
     : `# Context the subject supplied at intake\n\nNone was given.`;
 }
 
-export const PAST_STAGE = `Write the following, in order, and nothing else. Use only the foundation brief above. Forward periods are withheld on purpose; do not invent them.
+export const PAST_STAGE = `Write the following, in this exact order, and nothing else. Use only the foundation brief above. Forward periods are withheld on purpose; do not invent them.
 
-## Before we begin
+**Budget rule.** The numbered claims in Report 2 are the only thing the scoring UI needs. Write Report 2 first and finish all claims before Report 1. Keep disclosure and foundation short so claims are never cut off.
 
-Three short parts.
+## Report 2: The blind past-check (write this first)
 
-1. **Contamination disclosure.** State what you were given: the name, birth data and how the time is known, nothing more. The app withheld any other context the subject supplied until after the past-check is scored. Then be honest about the remaining leak: you know the subject's approximate era, country and age, and generic life-stage events (schooling, leaving home, first work, marriage) cluster at predictable ages. Say that claims which merely track the calendar of an ordinary life are weak evidence, and that the reader should weigh them accordingly.
-2. **The contract.** State the epistemic contract in your own words, briefly.
-3. **Computation notes.** From the brief: state the ascendant and its degree and how many minutes of birth-time error the lagna survives in each direction; if fewer than ten in either direction, say the whole analysis is time-critical. Relate this to how the time is known. Note the navamsa lagna's margin. Name the node convention (mean) and whether the true node lands in a different pada. State any computed value you believe is in error, or say you found none.
+Take the lived mahadashas and antardashas in the brief (already truncated at today). For each mahadasha, one or two sentences of texture is enough — then put the weight into numbered claims dated by antardasha, specific enough to be wrong. The brief lists CONVERGENCES where an antardasha start meets a Saturn ingress within four months — put a claim on each of those. Then cover the two or three most recent completed sub-periods.
 
-## Report 1: Foundation
+Every claim must be falsifiable. Refuse soft language. These are worthless and forbidden as claims: "a period of growth and challenge", "changes in the home environment", "focus on education or career", "relationship themes came up", "health needed attention", "inner work", "a transformative phase". Prefer concrete, dated, checkable content: a move, a break in schooling, a specific illness class, money stress of a named kind, a relative's death or departure, a job start/stop, an exam failure, a marriage or engagement window, a court or document event, a relocation city-class, a public embarrassment, a sudden responsibility for someone else.
 
-Verify from the brief. Confirm every house lordship from the computed lagna. Identify each planet's functional nature for this ascendant, and derive it rather than recalling it: lords of the angles (1, 4, 7, 10) and trines (5, 9) lean benefic; lords of 3, 6 and 11 lean malefic; lords of 8 and 12 are difficult; a planet ruling both an angle and a trine is the yogakaraka, which exists only for Taurus and Libra (Saturn), Cancer and Leo (Mars), and Capricorn and Aquarius (Venus). Note where the classical schools disagree about a particular lord for this lagna, and say which reading you adopted and why.
+Include at least one claim you would expect to be wrong if the method is empty, and mark it.
 
-Cover dignity, combustion, retrogression, vargottama status, and every conjunction inside three degrees listed in the brief. Then state plainly which three placements carry the most weight and why. Use the dispositor tally in the brief as the centre-of-gravity check.
-
-## Report 2: The blind past-check
-
-Take the lived mahadashas and antardashas in the brief (already truncated at today). For each mahadasha, describe texture, principal difficulties, what it built, what it withheld. Date the turns by antardasha with claims specific enough to be wrong. The brief lists CONVERGENCES where an antardasha start meets a Saturn ingress within four months — put a claim on each of those. Then briefly cover the two or three most recent completed sub-periods.
-
-Every claim must be falsifiable. "A period of growth and challenge" is worthless. Include at least one claim you would expect to be wrong if the method is empty, and mark it.
-
-**Claim format, required.** The subject will score each claim in a form the app builds from your text, so write every scorable claim as its own list item in exactly this shape, numbered sequentially across the whole report:
+**Claim format, required.** Write every scorable claim as its own markdown list item in exactly this shape, numbered sequentially:
 
 - **C1** · *Saturn–Mercury, Aug 2006 to Apr 2009, age 11 to 14* · The claim, in one or two sentences.
 
-Put the period label between single asterisks after the number. Append \` [CONTROL]\` to the end of a claim you would expect to be wrong if the method is empty. Prose framing around the claims is welcome; only the numbered items are scored. Aim for roughly fifteen to twenty-five claims.
+Put the period label between single asterisks after the number. Append \` [CONTROL]\` to the end of a claim you would expect to be wrong if the method is empty. Aim for fifteen to twenty-five claims. If a dasha has nothing specific enough to be wrong, say so in prose and do not invent a soft claim.
 
-End with one short paragraph asking the subject to score each claim right, wrong, or unclear before reading anything further. Do not write any forward-looking material.`;
+End Report 2 with one short paragraph asking the subject to score each claim right, wrong, or unclear before reading anything further. Do not write any forward-looking material.
+
+## Before we begin (after the claims)
+
+Three short parts, a few sentences each.
+
+1. **Contamination disclosure.** What you were given (name, birth data, how the time is known). Note that other intake context was withheld until scoring. Mention the remaining leak: era, country, age, and that calendar-typical claims are weak evidence.
+2. **The contract.** The epistemic contract in your own words, briefly.
+3. **Computation notes.** Ascendant and degree; minutes of birth-time error the lagna survives each way (time-critical if under ten); navamsa lagna margin; mean node convention and whether true node differs by pada; any computed value you believe is wrong, or none.
+
+## Report 1: Foundation (keep compact — after the claims)
+
+From the brief only. Confirm house lordships from the lagna. State each planet's functional nature for this ascendant (derive: angles/trines lean benefic; 3/6/11 lean malefic; 8/12 difficult; yogakaraka only for Taurus/Libra Saturn, Cancer/Leo Mars, Capricorn/Aquarius Venus). Note school disagreements where they matter. Cover dignity, combustion, retrogression, vargottama, and conjunctions inside three degrees from the brief. End with the three placements that carry the most weight and why, using the dispositor tally as a check. Do not re-expand into another past-check.`;
 
 export function scoreBlock(claims: Claim[], scores: Record<string, Score>, notes: Record<string, string>): string {
   const rows = claims.map((c) => {
@@ -159,43 +161,41 @@ Control claims: ${control.join("; ") || "none were marked"}.
 ${rows.join("\n")}`;
 }
 
-export const REPORTS_STAGE = `The subject has scored the past-check. Write the following, in order. Use the forward brief and the score digest; do not re-derive dasha or transit tables from memory.
+export const REPORTS_STAGE = `The subject has scored the past-check. Write the sections below in order. Use the forward brief and the score digest; do not re-derive dasha or transit tables from memory.
+
+**Budget rule.** Prefer finishing all four reports over polishing one. Rough target: score note ≤150 words; Reports 3–5 about 400–700 words each; Report 6 about 300–500 words. Use \`##\` headings exactly as given so the UI can section them.
 
 ## What the score implies
 
-Say what the score implies, including the case where it implies very little. Consider calendar-typical claims, how the control claims fared, and whether misses cluster in one period or kind of claim. Then adjust your confidence in Reports 3 through 5 out loud, and write them at the volume the score supports.
-
-You now also have the context the subject supplied at intake. Use it to sharpen Reports 4 and 5, and do not let it leak backward into a re-reading of the past-check.
+Briefly: what the score implies (including when it implies little), calendar-typical claims, control claims, whether misses cluster. Then state the confidence volume for Reports 3–5. Intake context may sharpen Reports 4–5 only — never rewrite the past-check.
 
 ## Report 3: The current timeline
 
-Read the RUNNING PERIODS, SUB-PERIODS AHEAD, TRANSITS, and FORWARD CONVERGENCES from the brief.
+From RUNNING PERIODS, SUB-PERIODS AHEAD, TRANSITS, FORWARD CONVERGENCES:
 
-- The mahadasha lord's condition and what it rules from this lagna, and how this period differs from the one before it.
-- The antardasha lord: what it rules, where it sits, what the pairing opens and asks for.
-- The window to the antardasha's end; which pratyantara stretches inside it are the grinding ones (from the brief).
-- The sequence beyond, flagging stretches that meet a listed convergence.
-- Current transits from the brief. State whether sade sati, kantaka Shani, or ashtama Shani is running. If nothing is running, say so. Where kantaka is defined from Moon vs lagna differently, give both and decline to choose.
+- Mahadasha lord: condition, what it rules from this lagna, how this period differs from the prior one.
+- Antardasha lord: rulerships, placement, what the pairing opens and asks for.
+- Window to antardasha end; grinding pratyantaras from the brief.
+- Sequence ahead, flagging listed convergences.
+- Current transits: sade sati / kantaka / ashtama (or none). If Moon vs lagna disagree on kantaka, give both and decline to choose.
 
 ## Report 4: Life direction and vocation
 
-Use the VOCATION LAYER in the brief (H9, H10, lagna lord, D9 lagna). Address the tension between the 9th and the 10th, and note when the same planet governs both.
-
-Say what kind of work the chart supports and resists. Where two incompatible readings stand, say both. State what the chart cannot determine: industry, employer, income, and whether any of it was pursued.
+From VOCATION LAYER (H9, H10, lagna lord, D9 lagna). 9th vs 10th tension; same planet ruling both if so. What work the chart supports and resists; two incompatible readings when they stand. What the chart cannot determine: industry, employer, income, whether pursued.
 
 ## Report 5: Self-fulfillment and the inner life
 
-Use the INNER-LIFE LAYER in the brief (Moon, H4, nodes, tithi). Cover sources of inner steadiness and its absence. Read nakshatra gift and shadow with equal weight. If the luminaries are near opposition, give the honest version: a real split that does not resolve; counsel is administrative rather than mystical.
+From INNER-LIFE LAYER (Moon, H4, nodes, tithi). Inner steadiness and its absence; nakshatra gift and shadow equally. If luminaries near opposition: a real split that does not resolve; counsel administrative, not mystical.
 
 ## Report 6: Confidence audit
 
-Sort what you wrote in Reports 3 through 5 (and what the score implies about the past-check) into three tiers.
+Sort Reports 3–5 (and the score's verdict on the past-check) into:
 
-- **Structural.** Holds regardless of school: lordships, dignities, dasha arithmetic, unambiguous placements, computed transits.
-- **Interpretive.** Follows from classical significations but depends on authority and method. Name the forks.
-- **Ornamental.** Reads well, rests on very little. Quote your own lines verbatim. If this tier is empty you have not been honest.
+- **Structural.** Lordships, dignities, dasha arithmetic, unambiguous placements, computed transits.
+- **Interpretive.** Classical significations that fork by school — name the forks.
+- **Ornamental.** Lines that read well on thin evidence — quote your own lines. Empty tier means you were not honest.
 
-Then answer directly: what can be read with reasonable confidence, what cannot, and one temptation you declined. Close on the unproven premise and the past-check score as the only instrument for testing it.`;
+Then: what can be read with reasonable confidence, what cannot, one temptation declined. Close on the unproven premise and the past-check score as the only test instrument.`;
 
 export const GUIDANCE_STAGE = `Write Stage 4: guidance in plain language.
 
@@ -211,6 +211,8 @@ Then append a glossary the reader can actually use: the twelve houses with what 
 
 export function protocolStage(seasonKeys: string[]): string {
   return `Produce the content for the subject's living protocol page as JSON matching the schema you have been given. The app builds the HTML; it computes the weekday, the running dasha periods, the season of the decade and the sade sati countdown from the machine's date each time the page loads. You supply the content and the design decisions.
+
+**Budget rule.** Finish a complete, valid JSON object. Prefer compact fields over ornate prose: day instructions 1–2 sentences each; season summaries 2–3 sentences; glossary one plain sentence per entry. Do not wrap the JSON in markdown fences if you can avoid it.
 
 **The seven-day rhythm is the spine.** Each weekday belongs to a planet: Sunday Sun, Monday Moon, Tuesday Mars, Wednesday Mercury, Thursday Jupiter, Friday Venus, Saturday Saturn. For each day, derive the brief from that planet's actual condition in this chart, never from a generic almanac. A well-placed Saturn earns a different Saturday than an afflicted one. Give every day four or five concrete instructions and one thing to avoid, and make each instruction defensible twice over: once as a planetary remedy and once as plain hygiene for this particular person, so the page stays useful whatever they believe. Where the subject told you about existing work or practice, route the instructions through it rather than inventing parallel obligations.
 
@@ -232,15 +234,23 @@ ${seasonKeys.map((k) => `- ${k}`).join("\n")}
 All prose in this JSON follows the voice rules, in the plain register of the guidance rather than the technical one.`;
 }
 
-/** Pull numbered claims out of Report 2. */
+/** Pull numbered claims out of Report 2 (tolerant of minor markdown drift). */
 export function parseClaims(markdown: string): Claim[] {
   const out: Claim[] = [];
-  const re = /^\s*(?:[-*+]|\d+\.)\s+\*\*C(\d+)\.?\*\*\s*[·•|:\-–—]?\s*(?:\*([^*]+)\*\s*[·•|:\-–—]?\s*)?(.+)$/gm;
+  const seen = new Set<string>();
+  // Preferred: - **C1** · *period* · text
+  // Also: C1. period — text / **C1** period: text / 1. **C1** ...
+  const re =
+    /^\s*(?:[-*+]|\d+\.)?\s*\*{0,2}C(\d+)\.?\*{0,2}\s*[·•|:.\-–—]?\s*(?:\*{1,2}([^*]+)\*{1,2}\s*[·•|:.\-–—]?\s*)?(.+)$/gim;
   for (const m of markdown.matchAll(re)) {
-    let text = m[3].trim();
+    const id = `C${m[1]}`;
+    if (seen.has(id)) continue;
+    let text = (m[3] ?? "").trim();
+    if (!text || text.length < 8) continue;
     const control = /\[CONTROL\]/i.test(text) || /\[CONTROL\]/i.test(m[2] ?? "");
     text = text.replace(/\s*\[CONTROL\]\s*/gi, " ").trim();
-    out.push({ id: `C${m[1]}`, period: (m[2] ?? "").trim(), text, control });
+    seen.add(id);
+    out.push({ id, period: (m[2] ?? "").trim(), text, control });
   }
   return out;
 }

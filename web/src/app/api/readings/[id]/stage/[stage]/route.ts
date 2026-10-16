@@ -4,6 +4,9 @@ import { gateError, isRunning, runStage, stageAlreadyDone, type StageEvent } fro
 import { getReading } from "@/lib/store";
 import type { StageName } from "@/lib/types";
 
+/** Hobby/Pro ceiling — keep in sync with web/vercel.json. */
+export const maxDuration = 300;
+
 const STAGES: StageName[] = ["past", "reports", "guidance", "protocol"];
 
 type StageCtx = { params: Promise<{ id: string; stage: string }> };

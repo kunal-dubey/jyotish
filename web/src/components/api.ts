@@ -55,8 +55,8 @@ export type StreamHandlers = {
   onError: (msg: string) => void;
 };
 
-export async function runStage(id: string, stage: StageName, h: StreamHandlers) {
-  const res = await fetch(`/api/readings/${id}/stage/${stage}`, opts({ method: "POST" }));
+export async function runStage(id: string, stage: StageName, h: StreamHandlers, signal?: AbortSignal) {
+  const res = await fetch(`/api/readings/${id}/stage/${stage}`, opts({ method: "POST", signal }));
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({}));
     h.onError((body as { error?: string }).error ?? `HTTP ${res.status}`);
@@ -66,26 +66,33 @@ export async function runStage(id: string, stage: StageName, h: StreamHandlers) 
   const dec = new TextDecoder();
   let buf = "";
   let finished = false;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line) continue;
-      const e = JSON.parse(line);
-      if (e.type === "thinking") h.onThinking(e.text);
-      else if (e.type === "text") h.onText(e.text);
-      else if (e.type === "done") {
-        finished = true;
-        h.onDone({ ...e.reading, generating: null });
-      } else if (e.type === "error") {
-        finished = true;
-        h.onError(e.message);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        const e = JSON.parse(line);
+        if (e.type === "thinking") h.onThinking(e.text);
+        else if (e.type === "text") h.onText(e.text);
+        else if (e.type === "done") {
+          finished = true;
+          h.onDone({ ...e.reading, generating: null });
+        } else if (e.type === "error") {
+          finished = true;
+          h.onError(e.message);
+        }
       }
     }
+  } catch (err) {
+    if (signal?.aborted) return;
+    throw err;
   }
-  if (!finished) h.onError("The connection closed before the stage finished. Reload to see whether it saved.");
+  if (!finished && !signal?.aborted) {
+    h.onError("The connection closed before the stage finished. Reload to see whether it saved.");
+  }
 }
