@@ -72,6 +72,16 @@ npm run seed:users
 | `free@test.local` | `TestPass123!` | free — Tier A/B modules only |
 | `paid@test.local` | `TestPass123!` | paid — full protocol stages |
 | `admin@test.local` | `TestPass123!` | admin — same as paid + overrides |
+| `contact.kunaldubey@gmail.com` | unchanged if already registered; else test password | admin |
+
+**Production seed** (uses the deployment’s Mongo at runtime — no need to pull Sensitive `MONGODB_URI`):
+
+```bash
+curl -X POST https://jyotish-web-coral.vercel.app/api/admin/seed \
+  -H "Authorization: Bearer $SEED_SECRET"
+```
+
+`SEED_SECRET` (or `AUTH_SECRET` if `SEED_SECRET` is unset) must match the production env var. Deploy workflow calls this automatically when GitHub secret `SEED_SECRET` is set (optional `WEB_PRODUCTION_URL`).
 
 In local/dev, the header also has a plan switcher. Live checkout will use **Dodo Payments** or **Cashfree** later (`web/src/lib/billing`).
 

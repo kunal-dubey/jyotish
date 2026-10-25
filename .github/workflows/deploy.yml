@@ -64,10 +64,28 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_WEB_PROJECT_ID }}
       - name: Deploy
+        id: deploy_web
         working-directory: web
         run: |
           url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Web deployed to $url"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_WEB_PROJECT_ID }}
+      - name: Seed QA + owner admin users
+        env:
+          SEED_SECRET: ${{ secrets.SEED_SECRET }}
+          WEB_URL: ${{ secrets.WEB_PRODUCTION_URL }}
+          DEPLOY_URL: ${{ steps.deploy_web.outputs.url }}
+        run: |
+          if [ -z "$SEED_SECRET" ]; then
+            echo "SEED_SECRET GitHub secret not set — skip production seed."
+            exit 0
+          fi
+          base="${WEB_URL:-$DEPLOY_URL}"
+          base="${base%/}"
+          echo "Seeding via $base/api/admin/seed"
+          curl -fsS -X POST "$base/api/admin/seed" \
+            -H "Authorization: Bearer $SEED_SECRET" \
+            -H "content-type: application/json"
