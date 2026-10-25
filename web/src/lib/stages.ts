@@ -27,6 +27,7 @@ import {
   protocolStage,
   scoreBlock,
 } from "./prompts";
+import { recordLlmUsage } from "./llmUsage";
 import { saveReading } from "./store";
 import type { Reading, StageName, Status } from "./types";
 import { STATUS_ORDER } from "./types";
@@ -349,6 +350,22 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
     }
     r.status = GATES[stage].produces;
     r.usage = { ...r.usage, [stage]: usage };
+    try {
+      await recordLlmUsage({
+        userId: r.userId,
+        readingId: r.id,
+        stage,
+        model,
+        provider: usingOpenRouter() ? "openrouter" : "anthropic",
+        ok: true,
+        inputTokens: usage.input,
+        outputTokens: usage.output,
+        cacheReadTokens: usage.cacheRead,
+        stopReason: msg.stop_reason,
+      });
+    } catch (logErr) {
+      console.warn("[llm_usage] failed to persist success event", logErr);
+    }
     emit({ type: "done", reading: await saveReading(r) });
   } catch (err) {
     const model = llmModelForStage(stage);
@@ -362,6 +379,22 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
             : err instanceof Error
               ? err.message
               : String(err);
+    try {
+      await recordLlmUsage({
+        userId: r.userId,
+        readingId: r.id,
+        stage,
+        model,
+        provider: usingOpenRouter() ? "openrouter" : "anthropic",
+        ok: false,
+        error: message.slice(0, 500),
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+      });
+    } catch (logErr) {
+      console.warn("[llm_usage] failed to persist error event", logErr);
+    }
     emit({ type: "error", message });
   } finally {
     running.delete(r.id);

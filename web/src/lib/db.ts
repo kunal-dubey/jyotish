@@ -15,6 +15,10 @@ function connect() {
       db.collection("users").createIndex({ email: 1 }, { unique: true }),
       db.collection("readings").createIndex({ id: 1 }, { unique: true }),
       db.collection("readings").createIndex({ userId: 1, updatedAt: -1 }),
+      db.collection("llm_usage").createIndex({ createdAt: -1 }),
+      db.collection("llm_usage").createIndex({ userId: 1, createdAt: -1 }),
+      db.collection("llm_usage").createIndex({ readingId: 1, createdAt: -1 }),
+      db.collection("llm_usage").createIndex({ stage: 1, createdAt: -1 }),
     ]);
   });
   return { client, db, ready };

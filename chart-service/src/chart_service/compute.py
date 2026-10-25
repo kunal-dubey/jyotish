@@ -14,6 +14,9 @@ from zoneinfo import ZoneInfo
 
 import swisseph as swe
 
+from .panchanga import build_panchanga
+from .vargas import build_vargas
+
 SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio",
          "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
 NAKS = ["Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu", "Pushya",
@@ -534,6 +537,13 @@ def compute_chart(*, date: str, time: str, lat: float, lon: float, tz: str | Non
         "conjunctions": conj,
         "dispositors": dispositors(sidx),
         "tithi": tithi,
+        "panchanga": build_panchanga(
+            sun_lon=pos["Sun"],
+            moon_lon=pos["Moon"],
+            birth_local_date=dt.date.fromisoformat(date),
+            planet_signs=sidx,
+        ),
+        "vargas": build_vargas(pos, asc),
         "sensitivity": sens,
         "vimshottari": vim,
         "transits": {"date": today_d.isoformat(), "bodies": tr, "status": transit_status,

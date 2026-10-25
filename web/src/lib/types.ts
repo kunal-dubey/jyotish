@@ -62,6 +62,24 @@ export type Chart = {
   yogakaraka: string[];
   dispositors: { terminus_counts: Record<string, number> };
   tithi: { number: number; name: string; paksha: string; sun_moon_separation: number; near_opposition: boolean };
+  /** Full panchanga when chart-service provides it (tithi + nakshatra + yoga + karana + vara + dagdha). */
+  panchanga?: {
+    tithi: { number: number; name: string; paksha: string; sun_moon_separation: number };
+    nakshatra: { name: string; lord: string; pada: number };
+    yoga: { number: number; name: string };
+    karana: { name: string };
+    vara: { weekday: string; index: number };
+    dagdha_rashi: { signs: string[]; planets_affected: string[] };
+  };
+  /** Divisional chart slices (D1–D60 keys like d1, d9). */
+  vargas?: Record<
+    string,
+    {
+      lagna?: string;
+      lagna_lord?: string;
+      planets: { name: string; sign: string; sign_index: number; dignity?: string | null }[];
+    }
+  >;
   sensitivity: {
     lagna: { minutes_earlier_survives: number | null; minutes_later_survives: number | null };
     navamsa_lagna: { minutes_earlier_survives: number | null; minutes_later_survives: number | null };
@@ -79,6 +97,8 @@ export type Chart = {
       antardasha: string;
       ad_start: string;
       ad_end: string;
+      md_start?: string;
+      md_end?: string;
       pratyantara: string | null;
     } | null;
   };
@@ -147,6 +167,8 @@ export type Reading = {
     reports?: string;
     guidance?: string;
     protocol?: import("./protocolSchema").ProtocolContent;
+    /** Cached free-tier counsel (LLM or template fallback). */
+    freeCounsel?: import("./freeCounselSchema").FreeCounsel;
   };
-  usage?: Partial<Record<StageName, { input: number; output: number; cacheRead: number }>>;
+  usage?: Partial<Record<StageName | "free_counsel", { input: number; output: number; cacheRead: number }>>;
 };

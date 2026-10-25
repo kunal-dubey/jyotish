@@ -1,8 +1,56 @@
 "use client";
+import type { ModuleDef } from "@/lib/modules";
+import type { ModuleSubtitle } from "@/lib/moduleSubtitles";
+import type { UserPlan } from "@/lib/plans";
 import type { Reading, StageName } from "@/lib/types";
+import type { VargaReadingCard } from "@/lib/vargaReadings";
 
-export type LoadedReading = Reading & { generating: StageName | null };
-export type AuthUser = { id: string; email: string; name?: string };
+export type ReadingModule = ModuleDef & {
+  subtitle?: ModuleSubtitle;
+  locked: boolean;
+  reading?: VargaReadingCard;
+};
+
+export type LoadedReading = Reading & {
+  generating: StageName | null;
+  plan?: UserPlan;
+  canAccessPaid?: boolean;
+  modules?: ReadingModule[];
+};
+export type AuthUser = { id: string; email: string; name?: string; plan?: UserPlan };
+
+export type LlmUsageTotals = {
+  calls: number;
+  ok: number;
+  failed: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+};
+
+export type LlmUsageReport = {
+  since: string | null;
+  totals: LlmUsageTotals;
+  byStage: Record<string, LlmUsageTotals>;
+  byModel: Record<string, LlmUsageTotals>;
+  byUser: { userId: string; email?: string; totals: LlmUsageTotals }[];
+  recent: {
+    id: string;
+    createdAt: string;
+    userId: string;
+    readingId: string;
+    stage: string;
+    model: string;
+    provider: string;
+    ok: boolean;
+    error?: string;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    totalTokens: number;
+  }[];
+};
 
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
@@ -28,6 +76,12 @@ export const api = {
       opts({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password, name }) }),
     ).then((r) => json<AuthUser>(r)),
   logout: () => fetch("/api/auth/logout", opts({ method: "POST" })).then((r) => json<{ ok: boolean }>(r)),
+  setPlan: (plan: UserPlan) =>
+    fetch("/api/auth/plan", opts({ method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ plan }) })).then(
+      (r) => json<AuthUser>(r),
+    ),
+  adminUsage: (days = 30) =>
+    fetch(`/api/admin/usage?days=${days}`, opts()).then((r) => json<LlmUsageReport>(r)),
   list: () =>
     fetch("/api/readings", opts()).then((r) =>
       json<{ id: string; name: string; date: string; place: string; lagna: string; status: string; updatedAt: string }[]>(r),

@@ -61,6 +61,24 @@ That starts both processes (Compose already covers Mongo + chart if you used `np
 
 Open **http://localhost:3000**. You can **Begin a reading** as a guest (account is created at the end of onboarding), or **Sign in** if you already have one.
 
+### Test subscription profiles
+
+```bash
+npm run seed:users
+```
+
+| Email | Password | Plan |
+| --- | --- | --- |
+| `free@test.local` | `TestPass123!` | free — Tier A/B modules only |
+| `paid@test.local` | `TestPass123!` | paid — full protocol stages |
+| `admin@test.local` | `TestPass123!` | admin — same as paid + overrides |
+
+In local/dev, the header also has a plan switcher. Live checkout will use **Dodo Payments** or **Cashfree** later (`web/src/lib/billing`).
+
+### LLM usage (admin)
+
+Every protocol stage call is appended to MongoDB collection `llm_usage` (model, tokens, ok/fail). Sign in as `admin@test.local` and open **Usage** in the header (`#/admin/usage`), or `GET /api/admin/usage?days=30`.
+
 ### Run pieces separately
 
 ```bash

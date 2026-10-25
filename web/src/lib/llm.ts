@@ -54,6 +54,15 @@ export function llmModelForStage(stage: StageName): string {
   return llmModel();
 }
 
+/**
+ * Cheap model for free-tier counsel (Right now + D1–D30 cards).
+ * Override with ANTHROPIC_MODEL_FREE.
+ */
+export function llmModelForFreeCounsel(): string {
+  if (process.env.ANTHROPIC_MODEL_FREE?.trim()) return process.env.ANTHROPIC_MODEL_FREE.trim();
+  return usingOpenRouter() ? FALLBACK_OPENROUTER_FLASH : "claude-haiku-4-5";
+}
+
 /** OpenRouter free endpoints (`:free` or the free router). */
 export function isFreeOpenRouterModel(model: string): boolean {
   return model === "openrouter/free" || model.endsWith(":free");

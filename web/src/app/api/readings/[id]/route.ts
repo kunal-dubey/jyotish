@@ -1,14 +1,36 @@
 import type { NextRequest } from "next/server";
 import { isResponse, requireUser } from "@/lib/auth";
 import { computeChart } from "@/lib/chartService";
+import { ensureFreeCounsel } from "@/lib/freeCounsel";
 import { validIntake } from "@/lib/intake";
+import { MODULES } from "@/lib/modules";
+import { subtitlesForModules } from "@/lib/moduleSubtitles";
+import { canAccessPaid } from "@/lib/plans";
 import { isRunning } from "@/lib/stages";
 import { deleteReading, getReading, saveReading } from "@/lib/store";
 import type { Intake, Reading, Score, Status } from "@/lib/types";
 import { STATUS_ORDER } from "@/lib/types";
+import { buildVargaReadings } from "@/lib/vargaReadings";
 
 function withRunning(r: Reading) {
   return { ...r, generating: isRunning(r.id) };
+}
+
+function withModules(r: Reading, plan: import("@/lib/plans").UserPlan) {
+  const subtitles = subtitlesForModules(MODULES, r.chart, r.intake);
+  const vargaReadings = buildVargaReadings(r.chart, r.intake, r.outputs.freeCounsel);
+  return {
+    ...r,
+    generating: isRunning(r.id),
+    plan,
+    canAccessPaid: canAccessPaid(plan),
+    modules: MODULES.map((m) => ({
+      ...m,
+      subtitle: subtitles[m.id],
+      locked: m.access === "paid" && !canAccessPaid(plan),
+      reading: m.tier === "B" ? vargaReadings[m.id] : undefined,
+    })),
+  };
 }
 
 /** Drop everything produced after `to`. */
@@ -21,6 +43,8 @@ function resetTo(r: Reading, to: Status) {
     reports: keep >= 4 ? o.reports : undefined,
     guidance: keep >= 5 ? o.guidance : undefined,
     protocol: keep >= 6 ? o.protocol : undefined,
+    // Keep free counsel unless the chart itself is wiped (recompute clears it separately).
+    freeCounsel: o.freeCounsel,
   };
   if (keep < 3) r.scoredAt = undefined;
   if (keep < 2) {
@@ -37,7 +61,10 @@ export async function GET(_req: NextRequest, ctx: IdCtx) {
   const user = await requireUser();
   if (isResponse(user)) return user;
   const r = await getReading((await ctx.params).id, user.id);
-  return r ? Response.json(withRunning(r)) : Response.json({ error: "Not found" }, { status: 404 });
+  if (!r) return Response.json({ error: "Not found" }, { status: 404 });
+  // Lazy once: low-effort LLM (or template fallback) for free atlas counsel.
+  const withCounsel = await ensureFreeCounsel(r);
+  return Response.json(withModules(withCounsel, user.plan));
 }
 
 export async function DELETE(_req: NextRequest, ctx: IdCtx) {
@@ -80,6 +107,8 @@ export async function PATCH(req: NextRequest, ctx: IdCtx) {
       }
       r.intake = p.intake;
       resetTo(r, "chart");
+      // Chart changed — regenerate free counsel on next GET.
+      r.outputs = { ...r.outputs, freeCounsel: undefined };
       break;
     }
 
@@ -123,5 +152,7 @@ export async function PATCH(req: NextRequest, ctx: IdCtx) {
     default:
       return fail("Unknown action.");
   }
-  return Response.json(withRunning(await saveReading(r)));
+  const saved = await saveReading(r);
+  const withCounsel = await ensureFreeCounsel(saved);
+  return Response.json(withModules(withCounsel, user.plan));
 }

@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 import { isResponse, requireUser } from "@/lib/auth";
+import { entitlementDenied } from "@/lib/entitlements";
+import { canAccessPaid } from "@/lib/plans";
 import { gateError, isRunning, runStage, stageAlreadyDone, type StageEvent } from "@/lib/stages";
 import { getReading } from "@/lib/store";
 import type { StageName } from "@/lib/types";
@@ -15,6 +17,8 @@ type StageCtx = { params: Promise<{ id: string; stage: string }> };
 export async function POST(_req: NextRequest, ctx: StageCtx) {
   const user = await requireUser();
   if (isResponse(user)) return user;
+  // Tier C protocol stages require paid (or admin).
+  if (!canAccessPaid(user.plan)) return entitlementDenied(user.plan);
   const { id, stage } = await ctx.params;
   if (!STAGES.includes(stage as StageName)) return Response.json({ error: "Unknown stage" }, { status: 404 });
   const r = await getReading(id, user.id);

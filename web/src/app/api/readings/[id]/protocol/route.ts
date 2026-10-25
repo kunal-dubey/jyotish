@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 import { isResponse, requireUser } from "@/lib/auth";
+import { entitlementDenied } from "@/lib/entitlements";
+import { canAccessPaid } from "@/lib/plans";
 import { buildProtocolHtml } from "@/lib/protocolHtml";
 import { getReading } from "@/lib/store";
 
@@ -8,6 +10,7 @@ type IdCtx = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, ctx: IdCtx) {
   const user = await requireUser();
   if (isResponse(user)) return user;
+  if (!canAccessPaid(user.plan)) return entitlementDenied(user.plan);
   const r = await getReading((await ctx.params).id, user.id);
   if (!r?.outputs.protocol) return new Response("No protocol yet.", { status: 404 });
   const html = buildProtocolHtml(r);

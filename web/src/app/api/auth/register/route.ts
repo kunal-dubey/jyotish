@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createUser, sessionCookieOptions, signSession } from "@/lib/auth";
+import { createUser, publicUser, sessionCookieOptions, signSession } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const token = await signSession(user);
     const jar = await cookies();
     jar.set(sessionCookieOptions(token));
-    return Response.json({ id: user.id, email: user.email, name: user.name });
+    return Response.json(publicUser(user));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const status = msg.includes("already exists") ? 409 : 400;

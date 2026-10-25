@@ -1,4 +1,5 @@
 "use client";
+import { INCLUDED_SHOWCASE } from "@/lib/modules";
 
 export default function Landing({ onSignIn }: { onSignIn: () => void }) {
   return (
@@ -15,8 +16,9 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
             A natal reading that must earn its trust before it speaks of your future.
           </h1>
           <p className="mt-4 sm:mt-5 text-[15px] sm:text-[15.5px] muted leading-relaxed max-w-[26rem]">
-            The chart is computed, not recalled. A blind past-check comes first — you score it — and only then does the
-            rest of the reading open at the volume that score allows.
+            The chart is computed, not recalled. You start with counsel you can use — what leads each life area, how
+            this period sits, what to focus on — then deeper atlas detail, and only later a blind past-check before
+            forward protocol opens.
           </p>
           <div className="mt-8 sm:mt-9 btn-row btn-row-stack sm:flex-row sm:items-center">
             <a href="#/begin" className="btn btn-primary">
@@ -32,15 +34,15 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
           {[
             {
               t: "Computed chart",
-              d: "Rising sign, dashas, and sensitivity from ephemeris — not from memory or a model guess.",
+              d: "Rising sign, periods, and birth-time sensitivity from ephemeris — not from memory or a model guess.",
+            },
+            {
+              t: "Right now + atlas",
+              d: "Led by · this period · focus for work, partnership, mind, money, drive, and learning — then open any area for more.",
             },
             {
               t: "Blind past-check",
               d: "Concrete claims about periods you already lived. Score them before any forward material appears.",
-            },
-            {
-              t: "Calibrated weight",
-              d: "Later reports read your score first, so confidence tracks what the chart actually got right.",
             },
           ].map((x) => (
             <li key={x.t}>
@@ -49,6 +51,41 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="relative mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 pb-16 sm:pb-24 enter-slow">
+        <div className="border-t hair pt-10 sm:pt-14 max-w-[52rem]">
+          <p className="eyebrow text-[var(--gold)]">With every reading</p>
+          <h2 className="serif text-[clamp(1.6rem,4vw,2.25rem)] leading-tight mt-2 max-w-[28rem]">
+            Your chart atlas arrives first — in language you can actually use.
+          </h2>
+          <p className="mt-4 muted text-[15px] leading-relaxed max-w-[32rem]">
+            No jargon wall. Each area leads with what factors it, how the running period colors it, and one focus line —
+            placements are there when you want the map behind the counsel.
+          </p>
+          <ul className="mt-8 sm:mt-10 grid sm:grid-cols-2 gap-x-10 gap-y-7">
+            {INCLUDED_SHOWCASE.map((x) => (
+              <li key={x.label}>
+                <p className="text-[15px] font-medium">{x.label}</p>
+                <p className="mt-1.5 text-[14px] muted leading-relaxed">{x.plain}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-12 sm:mt-16 max-w-[36rem] border-t hair pt-10">
+          <p className="eyebrow">Full protocol</p>
+          <h3 className="serif text-[clamp(1.35rem,3vw,1.75rem)] leading-tight mt-2">
+            Then the reading that must prove itself.
+          </h3>
+          <p className="mt-3 muted text-[14.5px] leading-relaxed">
+            Blind past-check scored by you, forward reports calibrated to that score, decade guidance, and a living
+            protocol page that keeps recomputing as time moves. The atlas stays yours either way.
+          </p>
+          <a href="#/begin" className="btn btn-primary mt-7">
+            Begin a reading
+          </a>
+        </div>
       </section>
     </main>
   );

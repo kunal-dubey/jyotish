@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import AdminUsage from "./AdminUsage";
 import AuthScreen from "./AuthScreen";
 import Home from "./Home";
 import Landing from "./Landing";
@@ -11,6 +12,7 @@ type Route =
   | { name: "home" }
   | { name: "begin" }
   | { name: "auth" }
+  | { name: "admin-usage" }
   | { name: "reading"; id: string };
 
 function parse(hash: string): Route {
@@ -18,6 +20,7 @@ function parse(hash: string): Route {
   if (m) return { name: "reading", id: m[1] };
   if (hash.startsWith("#/begin") || hash.startsWith("#/new")) return { name: "begin" };
   if (hash.startsWith("#/auth")) return { name: "auth" };
+  if (hash.startsWith("#/admin/usage")) return { name: "admin-usage" };
   return { name: "home" };
 }
 
@@ -37,7 +40,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user === null && route?.name === "reading") window.location.hash = "#/auth";
+    if (user === null && (route?.name === "reading" || route?.name === "admin-usage")) {
+      window.location.hash = "#/auth";
+    }
+    if (user && route?.name === "admin-usage" && user.plan !== "admin") {
+      window.location.hash = "#/";
+    }
   }, [user, route]);
 
   async function logout() {
@@ -54,11 +62,12 @@ export default function App() {
     );
   }
 
-  const showAuth = !user && (route.name === "auth" || route.name === "reading");
+  const showAuth = !user && (route.name === "auth" || route.name === "reading" || route.name === "admin-usage");
   const showLanding = !user && route.name === "home";
   const showBegin = route.name === "begin";
   const showReading = !!user && route.name === "reading";
   const showHome = !!user && route.name === "home";
+  const showAdminUsage = !!user && user.plan === "admin" && route.name === "admin-usage";
 
   return (
     <div className="min-h-dvh">
@@ -70,7 +79,35 @@ export default function App() {
           <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             {user ? (
               <>
-                <span className="text-[12px] muted hidden md:inline truncate max-w-[10rem]">{user.email}</span>
+                <span className="text-[12px] muted hidden md:inline truncate max-w-[10rem]">
+                  {user.email}
+                  <span className="opacity-70"> · {user.plan ?? "free"}</span>
+                </span>
+                {user.plan === "admin" && (
+                  <a href="#/admin/usage" className="btn btn-quiet text-[13px] sm:text-[14px]">
+                    Usage
+                  </a>
+                )}
+                {process.env.NODE_ENV !== "production" ? (
+                  <select
+                    className="text-[12px] bg-transparent muted border hair rounded-full px-2 py-1 max-w-[6.5rem]"
+                    aria-label="QA plan"
+                    value={user.plan ?? "free"}
+                    onChange={async (e) => {
+                      try {
+                        const next = await api.setPlan(e.target.value as "free" | "paid" | "admin");
+                        setUser(next);
+                        if (window.location.hash.startsWith("#/r/")) window.location.reload();
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : String(err));
+                      }
+                    }}
+                  >
+                    <option value="free">free</option>
+                    <option value="paid">paid</option>
+                    <option value="admin">admin</option>
+                  </select>
+                ) : null}
                 {route.name !== "begin" && (
                   <a href="#/begin" className="btn btn-quiet text-[13px] sm:text-[14px]">
                     <span className="sm:hidden">New</span>
@@ -116,6 +153,7 @@ export default function App() {
         />
       )}
       {showHome && <Home />}
+      {showAdminUsage && <AdminUsage />}
       {showReading && route.name === "reading" && <ReadingView key={route.id} id={route.id} />}
     </div>
   );
