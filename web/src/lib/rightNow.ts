@@ -30,6 +30,12 @@ export type RightNowBrief = {
     label: string;
     /** Plain chapter description. */
     meaning: string;
+    /** Classical dasha pair for practitioners, e.g. "Rahu–Mars". */
+    classical: string;
+    /** Antardasha end date. */
+    until: string;
+    /** Mahadasha end date when known. */
+    mdUntil: string | null;
     /** Expand: dasha names + dates. */
     chartDetail: { summary: string; lines: string[] };
   } | null;
@@ -46,7 +52,7 @@ const PLANET_PLAIN: Record<string, string> = {
   Jupiter: "growth, teaching, and honest expansion",
   Venus: "bond, ease, and desire",
   Saturn: "structure, patience, and lasting duty",
-  Rahu: "hunger for the unfamiliar",
+  Rahu: "appetite for what is new",
   Ketu: "release and unfinished threads",
 };
 
@@ -312,7 +318,10 @@ export function buildRightNow(
       chart.vimshottari.mahadashas.find((m) => m.lord === cur.mahadasha && m.status === "current")?.end;
     period = {
       label: "This chapter",
-      meaning: `You're in a longer stretch shaped by ${plainOf(cur.mahadasha)}, with a shorter stretch of ${plainOf(cur.antardasha)}. The cards below apply that to each life area.`,
+      meaning: `A longer chapter is running — shaped by ${plainOf(cur.mahadasha)}. Inside it, a shorter chapter brings ${plainOf(cur.antardasha)}. Open any life area below for one practice.`,
+      classical: `${cur.mahadasha}–${cur.antardasha}`,
+      until: cur.ad_end,
+      mdUntil: mdEnd ?? null,
       chartDetail: {
         summary: "Period names & dates",
         lines: [

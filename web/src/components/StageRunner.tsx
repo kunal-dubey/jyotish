@@ -15,43 +15,43 @@ const SHAPE: Record<StageName, { resetTo: Status; produces: Status }> = {
 /** Stages where streaming prose is hidden — calm status UI instead. */
 const QUIET_STREAM: Partial<Record<StageName, { title: string; steps: string[] }>> = {
   past: {
-    title: "Preparing your blind past-check",
+    title: "Preparing the past check",
     steps: [
-      "Opening the natal chart",
-      "Tracing the periods you have already lived",
+      "Opening the birth chart",
+      "Tracing periods already lived",
       "Drafting the foundation",
-      "Forming concrete claims about the past",
-      "Separating control claims from the rest",
-      "Almost ready — claims arriving next",
+      "Forming concrete claims",
+      "Separating control claims",
+      "Almost ready",
     ],
   },
   reports: {
-    title: "Writing Reports 3 to 6",
+    title: "Writing the reports",
     steps: [
-      "Reading your past-check score",
+      "Reading your past score",
       "Mapping the current timeline",
       "Drafting vocation and direction",
       "Drafting the inner life",
-      "Sorting what is solid from what is soft",
+      "Sorting solid from soft",
       "Almost ready",
     ],
   },
   guidance: {
-    title: "Writing plain-language guidance",
+    title: "Writing guidance",
     steps: [
-      "Carrying the confidence ceiling forward",
-      "Naming the decade's pressure",
-      "Ordering priorities and practices",
-      "Decoding remedies",
+      "Carrying the confidence forward",
+      "Naming the decade’s pressure",
+      "Ordering priorities",
+      "Decoding practices",
       "Almost ready",
     ],
   },
   protocol: {
-    title: "Building the living protocol",
+    title: "Building the living page",
     steps: [
-      "Shaping the seven-day rhythm",
-      "Writing the decade's seasons",
-      "Packing counsel and remedies",
+      "Shaping the week’s rhythm",
+      "Writing the decade’s seasons",
+      "Packing counsel",
       "Choosing palette and type",
       "Almost ready",
     ],
@@ -252,16 +252,14 @@ export default function StageRunner({
 
       {generatingHere && quiet && (
         <div className="stage-wait panel-soft enter" role="status" aria-live="polite" aria-busy="true">
-          <div className="stage-wait-orb" aria-hidden />
           <div className="flex items-center gap-3">
             <span className="stage-wait-ring" aria-hidden />
             <div className="min-w-0">
-              <p className="eyebrow text-[var(--gold)]">Working</p>
-              <p className="serif text-[clamp(1.25rem,3.5vw,1.55rem)] leading-snug mt-1">{quiet.title}</p>
+              <p className="serif text-[clamp(1.25rem,3.5vw,1.55rem)] leading-snug">{quiet.title}</p>
             </div>
           </div>
           <p className="muted text-[14px] mt-3 leading-relaxed max-w-[32rem]">
-            This usually takes a few minutes. The long draft stays out of the way — you will get a short, sectioned
+            This usually takes a few minutes. The long draft stays out of the way; you will get a short, sectioned
             reading when it is ready.
           </p>
           <ol className="stage-wait-steps mt-6">
@@ -270,7 +268,7 @@ export default function StageRunner({
               return (
                 <li key={labelText} data-state={state}>
                   <span className="stage-wait-mark" aria-hidden>
-                    {state === "done" ? "✓" : ""}
+                    {state === "done" ? "·" : ""}
                   </span>
                   <span>{labelText}</span>
                 </li>

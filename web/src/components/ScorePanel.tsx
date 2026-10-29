@@ -3,25 +3,26 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Score } from "@/lib/types";
 import { api, type LoadedReading } from "./api";
 
-const OPTIONS: { v: Score; label: string; hint: string; mark: string }[] = [
-  { v: "right", label: "Right", hint: "This happened, in substance", mark: "R" },
-  { v: "wrong", label: "Wrong", hint: "It did not happen that way", mark: "W" },
-  { v: "unclear", label: "Unclear", hint: "Too fuzzy to call", mark: "?" },
+/** Fits=2, Partly=1, No=0. Pass line is just over half of n×2 (7/12 of max). */
+const OPTIONS: { v: Score; label: string; points: number }[] = [
+  { v: "right", label: "Fits", points: 2 },
+  { v: "unclear", label: "Partly", points: 1 },
+  { v: "wrong", label: "No", points: 0 },
 ];
+const POINTS: Record<Score, number> = { right: 2, unclear: 1, wrong: 0 };
+
+function scoreScale(claimCount: number) {
+  const maxPoints = Math.max(0, claimCount * 2);
+  const passLine = maxPoints === 0 ? 0 : Math.max(1, Math.round((maxPoints * 7) / 12));
+  return { maxPoints, passLine };
+}
 
 export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReading: (r: LoadedReading) => void }) {
   const claims = r.outputs.claims ?? [];
   const locked = !(r.status === "past_check" || r.status === "scored");
+  const submitted = r.status === "scored" || (locked && r.status !== "past_check");
   const [scores, setScores] = useState<Record<string, Score>>(r.scores);
-  const [notes, setNotes] = useState<Record<string, string>>(r.scoreNotes);
-  const [index, setIndex] = useState(() => {
-    const firstOpen = claims.findIndex((c) => !r.scores[c.id]);
-    return firstOpen >= 0 ? firstOpen : 0;
-  });
-  const [showNote, setShowNote] = useState(false);
-  const [mode, setMode] = useState<"card" | "review">(() =>
-    r.status === "scored" || locked ? "review" : "card",
-  );
+  const [notes] = useState<Record<string, string>>(r.scoreNotes);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -29,7 +30,7 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
 
   useEffect(() => {
     const snap = JSON.stringify([scores, notes]);
-    if (locked || snap === lastSaved.current) return;
+    if (locked || submitted || snap === lastSaved.current) return;
     lastSaved.current = snap;
     clearTimeout(timer.current);
     setSaving("saving");
@@ -51,27 +52,15 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
     return t;
   }, [claims, scores]);
 
-  const done = claims.every((c) => scores[c.id]);
-  const decidable = tally.right + tally.wrong;
-  const claim = claims[index];
   const answered = claims.filter((c) => scores[c.id]).length;
-  const pct = claims.length ? Math.round((answered / claims.length) * 100) : 0;
+  const done = claims.every((c) => scores[c.id]);
+  const points = claims.reduce((sum, c) => sum + (scores[c.id] ? POINTS[scores[c.id]] : 0), 0);
+  const { maxPoints, passLine } = scoreScale(claims.length);
+  const pass = points >= passLine;
 
-  function mark(v: Score) {
-    if (!claim || locked) return;
-    const next = { ...scores, [claim.id]: v };
-    setScores(next);
-    const allDone = claims.every((c) => next[c.id]);
-    if (allDone) {
-      window.setTimeout(() => setMode("review"), 280);
-      return;
-    }
-    if (index < claims.length - 1) {
-      window.setTimeout(() => {
-        setIndex((i) => i + 1);
-        setShowNote(false);
-      }, 220);
-    }
+  function mark(id: string, v: Score) {
+    if (locked || submitted) return;
+    setScores((prev) => ({ ...prev, [id]: v }));
   }
 
   async function submit() {
@@ -86,188 +75,124 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
 
   if (!claims.length) return null;
 
-  if (mode === "review") {
-    return (
-      <section className="grid gap-6 sm:gap-8 enter min-w-0" aria-labelledby="score-h">
-        <header className="max-w-[36rem]">
-          <p className="eyebrow text-[var(--gold)]">Blind past-check</p>
-          <h2 id="score-h" className="serif text-[clamp(1.55rem,4.5vw,2.4rem)] leading-tight mt-1">
-            Your score
-          </h2>
-          <p className="mt-3 muted text-[14px] sm:text-[15px]">
-            <span className="text-[var(--ok)] font-semibold">{tally.right}</span> right ·{" "}
-            <span className="text-[var(--bad)] font-semibold">{tally.wrong}</span> wrong ·{" "}
-            <span className="font-semibold">{tally.unclear}</span> unclear
-            {decidable > 0 && (
-              <span> · {Math.round((100 * tally.right) / decidable)}% of decidable claims</span>
-            )}
+  return (
+    <div className="grid gap-4 enter" data-ui>
+      {submitted ? (
+        <div className={`result${pass ? "" : " result--warn"}`} id="score-result" tabIndex={-1}>
+          <p className="result__score num">
+            {points}
+            <span>/{maxPoints}</span>
           </p>
-        </header>
-
-        <ol className="grid gap-2">
-          {claims.map((c, i) => (
-            <li key={c.id}>
+          <h3 className="result__title">{pass ? "Above the Pass Line" : "Below the Pass Line"}</h3>
+          <p className="body">
+            {tally.right} of {claims.length} statements fit closely.{" "}
+            {pass
+              ? "The chart described enough of what already happened, so the reports are open."
+              : `You are under the ${passLine}-point pass line. The reports still open, with a note to read them as suggestions rather than forecasts.`}
+          </p>
+          {!locked && r.status === "scored" && (
+            <div className="result__actions">
+              <p className="small">Score submitted. Change answers below before later reports are written.</p>
+            </div>
+          )}
+          {locked && (
+            <div className="result__actions" style={{ marginTop: 12 }}>
+              <p className="small">
+                Scores are locked because later reports already exist. Reset to the past-check if you need to change
+                answers — that clears later stages so they can be rewritten.
+              </p>
               <button
                 type="button"
-                className="panel w-full text-left grid gap-2 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:gap-3 items-start"
-                onClick={() => {
-                  if (locked && r.status !== "scored") return;
-                  setMode("card");
-                  setIndex(i);
-                  setShowNote(!!notes[c.id]);
+                className="btn btn--ghost"
+                style={{ marginTop: 8 }}
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      "Reset to the past-check? Forward reports, guidance, and the living page will be cleared so you can rescore.",
+                    )
+                  ) {
+                    return;
+                  }
+                  setErr(null);
+                  try {
+                    onReading(await api.patch(r.id, { action: "reset", to: "past_check" }));
+                  } catch (e) {
+                    setErr((e as Error).message);
+                  }
                 }}
               >
-                <div className="flex items-center justify-between gap-2 sm:contents">
-                  <span className="serif muted">{c.id}</span>
-                  <span className="text-[12.5px] uppercase tracking-wide font-medium sm:order-none">
-                    {scores[c.id] ?? "—"}
-                  </span>
-                </div>
-                <span className="min-w-0">
-                  <span className="block text-[12px] muted break-words">{c.period}</span>
-                  <span className="serif text-[15px] sm:text-[16px] leading-snug break-words">{c.text}</span>
-                </span>
+                Reset to past-check
               </button>
-            </li>
-          ))}
-        </ol>
-
-        <div className="btn-row btn-row-stack">
-          {!locked && r.status === "past_check" && (
-            <>
-              <button type="button" className="btn" onClick={() => setMode("card")}>
-                Adjust marks
-              </button>
-              <button type="button" className="btn btn-primary" disabled={!done} onClick={submit}>
-                Lock the score & continue
-              </button>
-            </>
+            </div>
           )}
-          {r.status === "scored" && (
-            <span className="muted text-[13px]">Score submitted. Tap a claim to revise before later reports are written.</span>
-          )}
-          {locked && r.status !== "scored" && (
-            <span className="muted text-[13px]">Locked: later reports were written against this score.</span>
-          )}
-          <span className="muted text-[12.5px] sm:ml-auto">
-            {saving === "saving" ? "Saving…" : saving === "saved" ? "Draft saved" : ""}
-          </span>
         </div>
-        {err && <p className="note note-bad">{err}</p>}
-      </section>
-    );
-  }
-
-  if (!claim) return null;
-
-  return (
-    <section className="grid gap-5 sm:gap-6 enter min-w-0" aria-labelledby="score-h">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <p className="eyebrow text-[var(--gold)]">Hard stop · Blind past-check</p>
-          <h2 id="score-h" className="serif text-[clamp(1.45rem,4.2vw,2.2rem)] leading-tight mt-1">
-            Did this happen?
-          </h2>
-        </div>
-        <div className="text-right min-w-[7rem] grow sm:grow-0">
-          <p className="text-[12.5px] muted mb-1">
-            {answered} of {claims.length}
+      ) : (
+        <div className="why">
+          <p className="small">
+            Why this comes before the reports. If the chart cannot describe what already happened, its forecasts are
+            decoration. Score each statement against what actually happened. The pass line is {passLine} of {maxPoints}.
           </p>
-          <div className="progress-track w-full sm:w-36 sm:ml-auto">
-            <div className="progress-fill" style={{ width: `${pct}%` }} />
-          </div>
         </div>
-      </div>
+      )}
 
-      <p className="muted text-[14px] max-w-[36rem]">
-        Score from what actually occurred — before reading anything forward. Notes are optional; the model sees them with
-        your marks.
-      </p>
+      <ol className="claims">
+        {claims.map((c) => {
+          const chosen = scores[c.id];
+          return (
+            <li key={c.id} className={`claim${chosen ? " is-answered" : ""}`} role="group" aria-labelledby={`claim-label-${c.id}`}>
+              <div>
+                <div className="claim__chrome">
+                  <span className="claim__id">{c.id}</span>
+                  {c.control ? <span className="claim__tag claim__tag--control">Control</span> : null}
+                  {c.period ? <span className="claim__tag" title="Period label from the past-check">
+                    {c.period}
+                  </span> : null}
+                </div>
+                <p className="claim__text" id={`claim-label-${c.id}`}>
+                  {c.text}
+                </p>
+                {c.control ? (
+                  <p className="small muted" style={{ marginTop: 6 }}>
+                    Control claim — scores method quality, not only life fit.
+                  </p>
+                ) : null}
+              </div>
+              <div className="seg" role="radiogroup" aria-label={`Score ${c.id}`}>
+                {OPTIONS.map((o) => (
+                  <label key={o.v}>
+                    <input
+                      type="radio"
+                      name={`claim-${c.id}`}
+                      value={o.v}
+                      checked={chosen === o.v}
+                      disabled={locked && r.status !== "scored"}
+                      onChange={() => mark(c.id, o.v)}
+                    />
+                    <span>{o.label}</span>
+                  </label>
+                ))}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
 
-      <div key={claim.id} className="panel-soft fade-claim grid gap-4 sm:gap-5 min-w-0">
-        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-          <div className="flex items-center gap-2">
-            <span className="serif text-[20px] muted">{claim.id}</span>
-            {claim.control && (
-              <span className="px-2 py-0.5 rounded-full bg-[var(--accent-wash)] text-[11px] uppercase tracking-wider">
-                control
-              </span>
-            )}
-          </div>
-          <span className="text-[12.5px] muted sm:ml-auto break-words">{claim.period}</span>
-        </div>
-        <p className="serif text-[clamp(1.15rem,3.8vw,1.55rem)] leading-snug break-words">{claim.text}</p>
-
-        <div className="score-choice" role="group" aria-label={`Score for ${claim.id}`}>
-          {OPTIONS.map((o) => (
-            <button
-              key={o.v}
-              type="button"
-              data-v={o.v}
-              aria-pressed={scores[claim.id] === o.v}
-              disabled={locked}
-              onClick={() => mark(o.v)}
-            >
-              <span className="score-mark">{o.mark}</span>
-              <span className="min-w-0">
-                <span className="block font-medium">{o.label}</span>
-                <span className="block text-[12.5px] muted">{o.hint}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {(showNote || notes[claim.id]) && (
-          <input
-            className="input"
-            placeholder="What actually happened (optional)"
-            value={notes[claim.id] ?? ""}
-            disabled={locked}
-            onChange={(e) => setNotes((n) => ({ ...n, [claim.id]: e.target.value }))}
-          />
-        )}
-        {!showNote && !notes[claim.id] && !locked && (
-          <button type="button" className="see-more justify-self-start" onClick={() => setShowNote(true)}>
-            Add a private note
+      {!submitted && (
+        <div className="scorebar">
+          <p aria-live="polite">
+            <strong className="num">
+              {answered} of {claims.length}
+            </strong>{" "}
+            scored
+            {saving === "saving" ? " · Saving…" : saving === "saved" ? " · Draft saved" : ""}
+          </p>
+          <button type="button" className="btn btn--primary" disabled={!done || locked} onClick={submit}>
+            Save Scores
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="btn-row">
-        <button
-          type="button"
-          className="btn btn-quiet"
-          disabled={index === 0}
-          onClick={() => {
-            setIndex((i) => i - 1);
-            setShowNote(false);
-          }}
-        >
-          ← Previous
-        </button>
-        <button
-          type="button"
-          className="btn btn-quiet"
-          disabled={index >= claims.length - 1}
-          onClick={() => {
-            setIndex((i) => i + 1);
-            setShowNote(false);
-          }}
-        >
-          Skip ahead →
-        </button>
-        {done && (
-          <button type="button" className="btn btn-primary w-full sm:w-auto sm:ml-auto" onClick={() => setMode("review")}>
-            Review & submit
-          </button>
-        )}
-        {!done && (
-          <span className="muted text-[12.5px] w-full sm:w-auto sm:ml-auto">
-            {saving === "saving" ? "Saving…" : saving === "saved" ? "Draft saved" : ""}
-          </span>
-        )}
-      </div>
       {err && <p className="note note-bad">{err}</p>}
-    </section>
+    </div>
   );
 }

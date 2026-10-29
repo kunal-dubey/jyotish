@@ -14,14 +14,10 @@ const SOURCES: { v: TimeSource; label: string; hint: string }[] = [
 ];
 
 type Place = Intake["place"];
-type Step = "welcome" | "name" | "when" | "time" | "source" | "place" | "optional" | "account" | "compute";
+/** Four plain beats: who → birth → certainty → create */
+type Step = "who" | "birth" | "certainty" | "create";
 
-const STEPS: Step[] = ["welcome", "name", "when", "time", "source", "place", "optional", "account", "compute"];
-
-function progressIndex(step: Step, signedIn: boolean) {
-  const list = signedIn ? STEPS.filter((s) => s !== "account") : STEPS;
-  return list.indexOf(step);
-}
+const STEPS: Step[] = ["who", "birth", "certainty", "create"];
 
 export default function Onboarding({
   user,
@@ -32,13 +28,14 @@ export default function Onboarding({
   onAuthed: (u: AuthUser) => void;
   onCreated: (r: LoadedReading) => void;
 }) {
-  const [step, setStep] = useState<Step>("welcome");
+  const [step, setStep] = useState<Step>("who");
   const [f, setF] = useState<Partial<Intake>>({ name: "", callName: "", date: "", time: "" });
   const [placeQuery, setPlaceQuery] = useState("");
   const [place, setPlace] = useState<Place | null>(null);
   const [results, setResults] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
   const [manualOffset, setManualOffset] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -48,9 +45,8 @@ export default function Onboarding({
 
   const set = <K extends keyof Intake>(k: K, v: Intake[K]) => setF((x) => ({ ...x, [k]: v }));
   const signedIn = !!user;
-  const visibleSteps = signedIn ? STEPS.filter((s) => s !== "account") : STEPS;
-  const idx = progressIndex(step, signedIn);
-  const pct = Math.round(((idx + 1) / visibleSteps.length) * 100);
+  const idx = STEPS.indexOf(step);
+  const pct = Math.round(((idx + 1) / STEPS.length) * 100);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -76,19 +72,13 @@ export default function Onboarding({
     setStep(next);
   }
 
-  function after(current: Step): Step {
-    const i = visibleSteps.indexOf(current);
-    return visibleSteps[Math.min(i + 1, visibleSteps.length - 1)];
-  }
-
   function back() {
     setErr(null);
-    const i = visibleSteps.indexOf(step);
-    if (i <= 0) {
+    if (idx <= 0) {
       window.location.hash = "#/";
       return;
     }
-    setStep(visibleSteps[i - 1]);
+    setStep(STEPS[idx - 1]);
   }
 
   async function ensureAccount(): Promise<AuthUser> {
@@ -103,6 +93,9 @@ export default function Onboarding({
     setErr(null);
     try {
       if (!place) throw new Error("Choose the birth place from the list.");
+      if (!signedIn && (!email.trim() || password.length < 8)) {
+        throw new Error("Add an email and password (at least 8 characters) to save the reading.");
+      }
       await ensureAccount();
       const intake = {
         ...f,
@@ -117,20 +110,20 @@ export default function Onboarding({
     }
   }
 
+  const birthReady = !!(f.date && f.time && place);
   const roundTime = /:(00|30)$/.test(f.time ?? "");
   const weakSource = f.timeSource === "parent_memory" || f.timeSource === "rounded" || f.timeSource === "guess";
 
   return (
-    <main className="sky min-h-[calc(100dvh-3.5rem)] relative">
-      <div className="orb orb-b drift" aria-hidden />
-      <div className="mx-auto max-w-[34rem] px-4 sm:px-5 md:px-8 py-8 sm:py-10 md:py-16 min-w-0">
+    <main className="sky">
+      <div className="app-shell" style={{ maxWidth: "36rem" }}>
         <div className="mb-10">
           <div className="flex items-center justify-between gap-4 mb-3">
-            <button type="button" className="btn-quiet text-[13px]" onClick={back}>
+            <button type="button" className="btn btn-quiet text-[14px]" onClick={back}>
               ← Back
             </button>
-            <span className="eyebrow">
-              {idx + 1} / {visibleSteps.length}
+            <span className="text-[13px] muted">
+              {idx + 1} of {STEPS.length}
             </span>
           </div>
           <div className="progress-track" aria-hidden>
@@ -139,29 +132,11 @@ export default function Onboarding({
         </div>
 
         <div key={step} className="enter">
-          {step === "welcome" && (
+          {step === "who" && (
             <StepShell
-              kicker="A quiet beginning"
-              title="We'll gather a few facts — one at a time."
-              body="Name, birth moment, and place. Optional context waits until after the blind check, so it cannot color the score."
+              title="Who is this reading for?"
+              body="A full name for the record, and a shorter name for how the reading speaks."
             >
-              <button type="button" className="btn btn-primary" onClick={() => go("name")}>
-                I'm ready
-              </button>
-              {!signedIn && (
-                <p className="mt-6 text-[13px] muted">
-                  Already registered?{" "}
-                  <a href="#/auth" className="underline underline-offset-2">
-                    Sign in first
-                  </a>
-                  , then start a reading from home.
-                </p>
-              )}
-            </StepShell>
-          )}
-
-          {step === "name" && (
-            <StepShell kicker="Who is this for" title="What should we call them?" body="Full name for the record. A shorter name for how the reading speaks.">
               <label className="field mb-6">
                 <span className="muted text-[13px]">Full name</span>
                 <input
@@ -170,7 +145,7 @@ export default function Onboarding({
                   placeholder="As on the record"
                   value={f.name ?? ""}
                   onChange={(e) => set("name", e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && f.name?.trim() && go("when")}
+                  onKeyDown={(e) => e.key === "Enter" && f.name?.trim() && go("birth")}
                 />
               </label>
               <label className="field mb-8">
@@ -180,51 +155,133 @@ export default function Onboarding({
                   placeholder="A familiar name"
                   value={f.callName ?? ""}
                   onChange={(e) => set("callName", e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && f.name?.trim() && go("when")}
+                  onKeyDown={(e) => e.key === "Enter" && f.name?.trim() && go("birth")}
                 />
               </label>
-              <button type="button" className="btn btn-primary" disabled={!f.name?.trim()} onClick={() => go("when")}>
+              <button type="button" className="btn btn-primary" disabled={!f.name?.trim()} onClick={() => go("birth")}>
                 Continue
               </button>
-            </StepShell>
-          )}
-
-          {step === "when" && (
-            <StepShell kicker="The day" title="When were they born?" body="The calendar date in the place of birth.">
-              <input
-                ref={inputRef as React.RefObject<HTMLInputElement>}
-                className="flow-input flow-input-sm mb-8"
-                type="date"
-                value={f.date ?? ""}
-                onChange={(e) => set("date", e.target.value)}
-              />
-              <button type="button" className="btn btn-primary" disabled={!f.date} onClick={() => go("time")}>
-                Continue
-              </button>
-            </StepShell>
-          )}
-
-          {step === "time" && (
-            <StepShell
-              kicker="The clock"
-              title="What time, on the local clock?"
-              body="Minutes matter. The rising sign can turn in a short window — we'll show you how wide that window is."
-            >
-              <TimeField value={f.time ?? ""} onChange={(v) => set("time", v)} autoFocus />
-              {roundTime && (
-                <p className="note note-warn mb-6">
-                  Times ending in :00 or :30 are often rounded. The next step asks how the time is known.
+              {!signedIn && (
+                <p className="mt-6 text-[13px] muted">
+                  Already registered?{" "}
+                  <a href="#/auth" className="underline underline-offset-2">
+                    Sign in first
+                  </a>
+                  .
                 </p>
               )}
-              <button type="button" className="btn btn-primary" disabled={!f.time} onClick={() => go("source")}>
+            </StepShell>
+          )}
+
+          {step === "birth" && (
+            <StepShell
+              title="When and where were they born?"
+              body="Date and local clock time, then pick a place so the chart can be set."
+            >
+              <label className="field mb-6">
+                <span className="muted text-[13px]">Date</span>
+                <input
+                  ref={inputRef as React.RefObject<HTMLInputElement>}
+                  className="flow-input flow-input-sm"
+                  type="date"
+                  value={f.date ?? ""}
+                  onChange={(e) => set("date", e.target.value)}
+                />
+              </label>
+              <div className="mb-6">
+                <p className="muted text-[13px] mb-2">Time (local clock)</p>
+                <TimeField value={f.time ?? ""} onChange={(v) => set("time", v)} autoFocus={false} />
+                {roundTime && (
+                  <p className="note note-warn mt-3">
+                    Times ending in :00 or :30 are often rounded. You’ll say how the time is known next.
+                  </p>
+                )}
+              </div>
+              <div className="relative mb-4">
+                <label className="field">
+                  <span className="muted text-[13px]">Place of birth</span>
+                  <input
+                    className="flow-input flow-input-sm"
+                    placeholder="Town, country"
+                    value={placeQuery}
+                    onChange={(e) => {
+                      setPlaceQuery(e.target.value);
+                      setPlace(null);
+                      if (!e.target.value.trim()) setResults([]);
+                    }}
+                    role="combobox"
+                    aria-controls="place-results"
+                    aria-autocomplete="list"
+                    aria-expanded={results.length > 0}
+                  />
+                </label>
+                {searching && <p className="muted text-[13px] mt-2">Searching…</p>}
+                {results.length > 0 && (
+                  <ul
+                    className="mt-2 max-h-56 overflow-auto bg-[var(--paper-2)] rounded-[4px]"
+                    role="listbox"
+                    id="place-results"
+                  >
+                    {results.map((r, k) => (
+                      <li key={k}>
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2.5 hover:bg-[var(--paper)]"
+                          onClick={() => {
+                            setPlace(r);
+                            setPlaceQuery(r.label);
+                            setResults([]);
+                          }}
+                        >
+                          {r.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {place && (
+                <p className="muted text-[13px] mb-4">
+                  {place.tz ?? "Time zone will be resolved"} · {place.lat.toFixed(2)}, {place.lon.toFixed(2)}
+                </p>
+              )}
+              <button
+                type="button"
+                className="see-more mb-6 justify-self-start"
+                onClick={() => setShowAdvanced((v) => !v)}
+              >
+                {showAdvanced ? "Hide advanced" : "Advanced: UTC offset"}
+              </button>
+              {showAdvanced && (
+                <div className="mb-6">
+                  <label className="flex items-center gap-2 mb-3 text-[14px]">
+                    <input type="checkbox" checked={manualOffset} onChange={(e) => setManualOffset(e.target.checked)} />
+                    Override UTC offset by hand
+                  </label>
+                  {manualOffset && (
+                    <input
+                      className="input max-w-[12rem]"
+                      type="number"
+                      step="0.25"
+                      placeholder="e.g. 5.5"
+                      value={f.utcOffsetOverride ?? ""}
+                      onChange={(e) => set("utcOffsetOverride", e.target.value === "" ? null : Number(e.target.value))}
+                    />
+                  )}
+                </div>
+              )}
+              <button type="button" className="btn btn-primary" disabled={!birthReady} onClick={() => go("certainty")}>
                 Continue
               </button>
             </StepShell>
           )}
 
-          {step === "source" && (
-            <StepShell kicker="Certainty" title="How is that time known?" body="This sets the error bar the analysis will carry.">
-              <div className="choice mb-4" role="radiogroup">
+          {step === "certainty" && (
+            <StepShell
+              title="How sure is that time?"
+              body="This sets how carefully we treat the birth moment. Optional notes can wait until after the past check."
+            >
+              <div className="choice mb-6" role="radiogroup" aria-label="Time source">
                 {SOURCES.map((s) => (
                   <label key={s.v} title={s.hint}>
                     <input
@@ -245,198 +302,76 @@ export default function Onboarding({
               />
               {weakSource && (
                 <p className="note note-warn mb-6">
-                  The analysis will treat this time as approximate. On the next screen you'll see how many minutes the
-                  rising sign survives in each direction.
+                  We’ll treat this time as approximate and show how wide the rising window is.
                 </p>
               )}
-              <button type="button" className="btn btn-primary" disabled={!f.timeSource} onClick={() => go("place")}>
-                Continue
-              </button>
-            </StepShell>
-          )}
-
-          {step === "place" && (
-            <StepShell kicker="Where" title="Where were they born?" body="Pick a place from the list so we can resolve coordinates and the historical time zone.">
-              <div className="relative mb-4">
-                <input
-                  ref={inputRef as React.RefObject<HTMLInputElement>}
-                  className="flow-input flow-input-sm"
-                  placeholder="Town, country"
-                  value={placeQuery}
-                  onChange={(e) => {
-                    setPlaceQuery(e.target.value);
-                    setPlace(null);
-                    if (!e.target.value.trim()) setResults([]);
-                  }}
-                  role="combobox"
-                  aria-controls="place-results"
-                  aria-autocomplete="list"
-                  aria-expanded={results.length > 0}
-                />
-                {searching && <p className="muted text-[12.5px] mt-2">Searching…</p>}
-                {results.length > 0 && (
-                  <ul className="border hair rounded-[10px] mt-2 max-h-56 overflow-auto bg-[var(--paper)]" role="listbox" id="place-results">
-                    {results.map((r, k) => (
-                      <li key={k}>
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-2.5 hover:bg-[var(--paper-2)]"
-                          onClick={() => {
-                            setPlace(r);
-                            setPlaceQuery(r.label);
-                            setResults([]);
-                          }}
-                        >
-                          {r.label}
-                          <span className="muted text-[12.5px] ml-2">
-                            {r.lat.toFixed(3)}, {r.lon.toFixed(3)}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              {place && (
-                <p className="muted text-[13px] mb-4">
-                  {place.lat.toFixed(4)}, {place.lon.toFixed(4)} · {place.tz ?? "no time zone found"}
-                </p>
-              )}
-              <label className="flex items-center gap-2 mb-6 text-[13.5px]">
-                <input type="checkbox" checked={manualOffset} onChange={(e) => setManualOffset(e.target.checked)} />
-                Override UTC offset by hand
-              </label>
-              {manualOffset && (
-                <input
-                  className="input max-w-[12rem] mb-6"
-                  type="number"
-                  step="0.25"
-                  placeholder="e.g. 5.5"
-                  value={f.utcOffsetOverride ?? ""}
-                  onChange={(e) => set("utcOffsetOverride", e.target.value === "" ? null : Number(e.target.value))}
-                />
-              )}
-              <button type="button" className="btn btn-primary" disabled={!place} onClick={() => go("optional")}>
-                Continue
-              </button>
-            </StepShell>
-          )}
-
-          {step === "optional" && (
-            <StepShell
-              kicker="Optional — can skip"
-              title="Anything that should shape the later reports?"
-              body="Held back from the model until you score the past-check. Skip if you'd rather keep the reading lean."
-            >
-              <label className="field mb-4">
-                <span>Work or vocation</span>
-                <input
-                  ref={inputRef as React.RefObject<HTMLInputElement>}
-                  className="input"
-                  value={f.occupation ?? ""}
-                  onChange={(e) => set("occupation", e.target.value)}
-                  placeholder="Optional"
-                />
-              </label>
-              <label className="field mb-4">
-                <span>A practice they already follow</span>
-                <input className="input" value={f.practice ?? ""} onChange={(e) => set("practice", e.target.value)} placeholder="Optional" />
-              </label>
-              <label className="field mb-8">
-                <span>A question behind the request</span>
-                <textarea className="input" rows={2} value={f.question ?? ""} onChange={(e) => set("question", e.target.value)} placeholder="Optional" />
-              </label>
-              <div className="btn-row btn-row-stack sm:flex-row">
-                <button type="button" className="btn btn-primary" onClick={() => go(signedIn ? "compute" : "account")}>
-                  Continue
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    setF((x) => {
-                      const next = { ...x };
-                      delete next.occupation;
-                      delete next.practice;
-                      delete next.question;
-                      return next;
-                    });
-                    go(signedIn ? "compute" : "account");
-                  }}
-                >
-                  Skip for now
-                </button>
-              </div>
-            </StepShell>
-          )}
-
-          {step === "account" && (
-            <StepShell
-              kicker="Save the reading"
-              title="Create a quiet account so nothing is lost."
-              body="Charts and scores live with you. No newsletter — just a place to return."
-            >
-              <label className="field mb-4">
-                <span>Email</span>
-                <input
-                  ref={inputRef as React.RefObject<HTMLInputElement>}
-                  className="input"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label className="field mb-8">
-                <span>Password</span>
-                <input
-                  className="input"
-                  type="password"
-                  minLength={8}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                />
-              </label>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={!email.trim() || password.length < 8}
-                onClick={() => go("compute")}
+                disabled={!f.timeSource}
+                onClick={() => go("create")}
               >
                 Continue
               </button>
-              <p className="mt-5 text-[13px] muted">
-                Already have an account?{" "}
-                <a href="#/auth" className="underline underline-offset-2">
-                  Sign in
-                </a>{" "}
-                — your draft answers stay in this tab until you leave.
-              </p>
             </StepShell>
           )}
 
-          {step === "compute" && (
+          {step === "create" && (
             <StepShell
-              kicker="Ready"
-              title={`Cast the chart for ${f.callName || f.name || "them"}.`}
-              body={`${f.date} · ${f.time} · ${place?.label ?? "—"}. Next you'll confirm the rising sign before any model writing begins.`}
+              title={`Ready for ${f.callName || f.name || "them"}`}
+              body="We’ll cast the chart next. You confirm the details before any forward writing."
             >
               <dl className="panel-soft meta-grid mb-8">
                 <dt>Name</dt>
                 <dd>{f.name}</dd>
                 <dt>Moment</dt>
                 <dd>
-                  {f.date} {f.time}
+                  {f.date} · {f.time}
                 </dd>
                 <dt>Place</dt>
                 <dd>{place?.label}</dd>
-                <dt>Time source</dt>
+                <dt>Time known by</dt>
                 <dd>{SOURCES.find((s) => s.v === f.timeSource)?.label}</dd>
               </dl>
+
+              {!signedIn && (
+                <div className="grid gap-4 mb-8">
+                  <p className="text-[14px] muted">Save the reading with a quiet account.</p>
+                  <label className="field">
+                    <span>Email</span>
+                    <input
+                      ref={inputRef as React.RefObject<HTMLInputElement>}
+                      className="input"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Password</span>
+                    <input
+                      className="input"
+                      type="password"
+                      minLength={8}
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                    />
+                  </label>
+                  <p className="text-[13px] muted">
+                    Already have an account?{" "}
+                    <a href="#/auth" className="underline underline-offset-2">
+                      Sign in
+                    </a>
+                    .
+                  </p>
+                </div>
+              )}
+
               <button type="button" className="btn btn-primary" disabled={busy} onClick={compute}>
-                {busy ? "Computing the chart…" : "Compute the chart"}
+                {busy ? "Computing…" : "Compute the chart"}
               </button>
             </StepShell>
           )}
@@ -449,21 +384,18 @@ export default function Onboarding({
 }
 
 function StepShell({
-  kicker,
   title,
   body,
   children,
 }: {
-  kicker: string;
   title: string;
   body: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="min-w-0">
-      <p className="eyebrow text-[var(--gold)]">{kicker}</p>
-      <h1 className="serif text-[clamp(1.55rem,5.5vw,2.45rem)] leading-[1.12] tracking-tight mt-2 break-words">{title}</h1>
-      <p className="muted mt-4 mb-8 leading-relaxed text-[14.5px] sm:text-[15px]">{body}</p>
+      <h1 className="stage-title break-words" style={{ fontSize: "clamp(28px, 5vw, 40px)" }}>{title}</h1>
+      <p className="muted mt-4 mb-8 leading-relaxed text-[15px]">{body}</p>
       {children}
     </div>
   );

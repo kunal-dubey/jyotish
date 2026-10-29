@@ -4,17 +4,13 @@ import { CHART_TOPICS, topicGroups, type ChartTopic } from "@/lib/modules";
 import { buildRightNow } from "@/lib/rightNow";
 import type { LoadedReading, ReadingModule } from "./api";
 
-type Tab = "about" | "map" | "words";
 type AtlasView = "now" | "explore";
 
 export default function ModulesPanel({
   r,
-  onUnlockHint,
-  onContinueToPast,
 }: {
   r: LoadedReading;
   onUnlockHint?: () => void;
-  /** Primary CTA: leave atlas for the blind past-check step. */
   onContinueToPast?: () => void;
 }) {
   const modulesById = useMemo(() => {
@@ -37,15 +33,10 @@ export default function ModulesPanel({
   const [view, setView] = useState<AtlasView>("now");
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "foundations");
   const group = groups.find((g) => g.id === groupId) ?? groups[0];
-  const [topicId, setTopicId] = useState(group?.topics[0]?.id ?? "rising");
-  const topic =
-    group?.topics.find((t) => t.id === topicId) ??
-    group?.topics[0] ??
-    included[0];
-  const [tab, setTab] = useState<Tab>(() => {
-    const first = groups[0]?.topics[0];
-    return first?.readingId ? "words" : "about";
-  });
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const topic = topicId
+    ? included.find((t) => t.id === topicId) ?? group?.topics.find((t) => t.id === topicId)
+    : undefined;
 
   const name = r.intake.callName || r.intake.name;
   const placement = topic?.placementId ? modulesById.get(topic.placementId) : undefined;
@@ -53,40 +44,31 @@ export default function ModulesPanel({
   const fact = topic?.factId ? modulesById.get(topic.factId) : undefined;
   const subtitle = fact?.subtitle ?? reading?.subtitle ?? placement?.subtitle;
 
-  function preferTab(t: ChartTopic | undefined): Tab {
-    if (t?.readingId) return "words";
-    return "about";
-  }
-
   function selectGroup(id: string) {
     setView("explore");
     setGroupId(id);
-    const g = groups.find((x) => x.id === id);
-    const first = g?.topics[0];
-    if (first) {
-      setTopicId(first.id);
-      setTab(preferTab(first));
-    }
+    setTopicId(null);
   }
 
   function selectTopic(id: string) {
     setView("explore");
     setTopicId(id);
-    const t = included.find((x) => x.id === id) ?? group?.topics.find((x) => x.id === id);
-    setTab(preferTab(t));
   }
 
   return (
     <div className="grid gap-8 enter min-w-0">
-      <nav className="flex flex-wrap gap-2" aria-label="Atlas views">
+      <aside className="why" aria-label="How to read what follows">
+        <p>
+          What the chart states (sign, house, period dates) is data. The story built from it is interpretation. Prefer
+          the plain reading. When two readings compete, both can stand. The past-check later is the only honest measure
+          of how much weight the forward reports deserve.
+        </p>
+      </aside>
+
+      <nav className="tab-seg" aria-label="Atlas views">
         <button
           type="button"
           aria-current={view === "now" ? "true" : undefined}
-          className={`text-[13px] px-3.5 py-1.5 rounded-full border hair transition-colors ${
-            view === "now"
-              ? "bg-[var(--accent-wash)] border-[var(--accent)] text-[var(--ink)]"
-              : "muted hover:text-[var(--ink)]"
-          }`}
           onClick={() => setView("now")}
         >
           Right now
@@ -94,281 +76,199 @@ export default function ModulesPanel({
         <button
           type="button"
           aria-current={view === "explore" ? "true" : undefined}
-          className={`text-[13px] px-3.5 py-1.5 rounded-full border hair transition-colors ${
-            view === "explore"
-              ? "bg-[var(--accent-wash)] border-[var(--accent)] text-[var(--ink)]"
-              : "muted hover:text-[var(--ink)]"
-          }`}
-          onClick={() => setView("explore")}
+          onClick={() => {
+            setView("explore");
+            setTopicId(null);
+          }}
         >
           Explore life areas
         </button>
       </nav>
 
       {view === "now" && (
-        <section className="panel-soft px-4 sm:px-5 py-5 sm:py-6 grid gap-5 max-w-[42rem]">
-          <header>
-            <p className="eyebrow">Included · snapshot</p>
-            <h3 className="serif text-[clamp(1.4rem,3.5vw,1.9rem)] leading-tight mt-1">{rightNow.headline}</h3>
-            <p className="muted mt-3 text-[14px] leading-relaxed">{rightNow.plain}</p>
-          </header>
-
-          {rightNow.period && (
-            <div className="grid gap-2">
-              <p className="eyebrow text-[11px]">{rightNow.period.label}</p>
-              <p className="text-[14px] leading-relaxed">{rightNow.period.meaning}</p>
-              <details className="text-[13px]">
-                <summary className="see-more cursor-pointer list-none w-fit [&::-webkit-details-marker]:hidden">
-                  Period names & dates
-                </summary>
-                <ul className="mt-2 grid gap-1 muted pl-0">
-                  {rightNow.period.chartDetail.lines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </details>
+        <section className="grid gap-6">
+          <div className="snapshot">
+            <div className="snapshot__item">
+              <span className="snapshot__label">Running now</span>
+              <span className="snapshot__value">{rightNow.period?.meaning ?? rightNow.headline}</span>
             </div>
-          )}
-
-          {rightNow.sky.length > 0 && (
-            <div className="grid gap-3">
-              <p className="eyebrow text-[11px]">Weather around you</p>
-              {rightNow.sky.map((s) => (
-                <div key={s.label} className="grid gap-1">
-                  <p className="text-[14px] font-medium">{s.label}</p>
-                  <p className="text-[13.5px] muted leading-relaxed">{s.detail}</p>
-                  {s.chartDetail && (
-                    <details className="text-[12.5px]">
-                      <summary className="see-more cursor-pointer list-none w-fit [&::-webkit-details-marker]:hidden">
-                        Chart name
-                      </summary>
-                      <p className="mt-1 muted">{s.chartDetail}</p>
-                    </details>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="grid gap-4">
-            <p className="eyebrow text-[11px]">Life areas</p>
-            {rightNow.areas.map((a) => (
-              <article key={a.id} className="border-t hair pt-4 first:border-0 first:pt-0 grid gap-2.5">
-                <h4 className="text-[15px] font-medium">{a.area}</h4>
-                <dl className="grid gap-2.5 text-[13.5px] leading-relaxed">
-                  <div>
-                    <dt className="muted text-[11px] uppercase tracking-wide">Led by</dt>
-                    <dd className="mt-0.5">{a.ledBy}</dd>
-                  </div>
-                  <div>
-                    <dt className="muted text-[11px] uppercase tracking-wide">In this chapter</dt>
-                    <dd className="mt-0.5">{a.today}</dd>
-                  </div>
-                  <div>
-                    <dt className="muted text-[11px] uppercase tracking-wide">Focus</dt>
-                    <dd className="mt-0.5 font-medium">{a.focus}</dd>
-                  </div>
-                </dl>
-                <details className="text-[13px]">
-                  <summary className="see-more cursor-pointer list-none w-fit [&::-webkit-details-marker]:hidden">
-                    {a.chartDetail.summary}
-                  </summary>
-                  <ul className="mt-2 grid gap-1.5 muted leading-relaxed pl-0">
-                    {a.chartDetail.lines.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                </details>
-                <button
-                  type="button"
-                  className="see-more w-fit text-[12.5px]"
-                  onClick={() => {
-                    const groupFor =
-                      a.id === "work"
-                        ? "work"
-                        : a.id === "partnership"
-                          ? "path"
-                          : a.id === "money" || a.id === "mind"
-                            ? "resources"
-                            : a.id === "drive"
-                              ? "bonds"
-                              : a.id === "learning"
-                                ? "inner"
-                                : "foundations";
-                    setGroupId(groupFor);
-                    const topicMap: Record<string, string> = {
-                      work: "d10",
-                      partnership: "d9",
-                      mind: "d4",
-                      money: "d2",
-                      drive: "d3",
-                      learning: "d24",
-                    };
-                    setTopicId(topicMap[a.id] ?? "rising");
-                    setTab("words");
-                    setView("explore");
-                  }}
-                >
-                  More on this area →
-                </button>
-              </article>
+            {rightNow.sky.slice(0, 2).map((s) => (
+              <div key={s.label} className="snapshot__item">
+                <span className="snapshot__label">{s.label}</span>
+                <span className="snapshot__value">{s.detail}</span>
+              </div>
             ))}
           </div>
 
-          <p className="note text-[13px] leading-snug">{rightNow.boundary}</p>
+          {rightNow.period && (
+            <details className="disclose">
+              <summary>
+                Period names & dates
+                {rightNow.period.classical ? (
+                  <span className="muted" style={{ fontWeight: 400 }}>
+                    {" "}
+                    · {rightNow.period.classical}
+                  </span>
+                ) : null}
+                <span aria-hidden>▾</span>
+              </summary>
+              <div className="disclose__body">
+                <ul className="how">
+                  {rightNow.period.chartDetail.lines.map((line) => (
+                    <li key={line}>
+                      <p>{line}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </details>
+          )}
 
-          <div className="btn-row flex-wrap">
-            <button type="button" className="btn" onClick={() => setView("explore")}>
-              Explore life areas
-            </button>
-            {(onContinueToPast || onUnlockHint) && (
-              <button type="button" className="btn btn-primary" onClick={() => (onContinueToPast ?? onUnlockHint)?.()}>
-                {r.canAccessPaid ? "Continue to past-check →" : "Next: past-check →"}
-              </button>
-            )}
-          </div>
+          <ul className="areas" aria-label="Areas of life">
+            {rightNow.areas.map((a) => (
+              <li key={a.id} className="area">
+                <h3 className="area__h">
+                  <button
+                    type="button"
+                    className="area__trigger"
+                    aria-expanded="false"
+                    onClick={(e) => {
+                      const li = (e.currentTarget as HTMLElement).closest(".area");
+                      const list = li?.parentElement;
+                      if (!li || !list) return;
+                      const willOpen = !li.classList.contains("is-open");
+                      list.querySelectorAll(".area.is-open").forEach((other) => {
+                        if (other === li) return;
+                        other.classList.remove("is-open");
+                        const btn = other.querySelector(".area__trigger");
+                        const body = other.querySelector(".area__body") as HTMLElement | null;
+                        btn?.setAttribute("aria-expanded", "false");
+                        if (body) body.hidden = true;
+                      });
+                      li.classList.toggle("is-open", willOpen);
+                      e.currentTarget.setAttribute("aria-expanded", willOpen ? "true" : "false");
+                      const body = li.querySelector(".area__body") as HTMLElement | null;
+                      if (body) body.hidden = !willOpen;
+                    }}
+                  >
+                    <span>
+                      <span className="area__name">{a.area}</span>
+                      <span className="area__basis">{a.focus}</span>
+                    </span>
+                    <svg className="area__chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </h3>
+                <div className="area__body" hidden>
+                  <div className="area__part area__part--practice">
+                    <h4>One practice</h4>
+                    <p>{a.focus}</p>
+                  </div>
+                  <div className="area__part">
+                    <h4>What to watch</h4>
+                    <p>{a.today}</p>
+                  </div>
+                  <div className="area__part">
+                    <h4>What leads it</h4>
+                    <p>{a.ledBy}</p>
+                  </div>
+                  <details className="disclose" style={{ background: "transparent" }}>
+                    <summary style={{ minHeight: 44, padding: "8px 0", fontSize: "var(--t-sm)" }}>
+                      Chart factors
+                      <span aria-hidden>▾</span>
+                    </summary>
+                    <div className="area__deep-body">
+                      <p>{a.chartDetail.summary}</p>
+                      {a.chartDetail.lines.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <p className="small">{rightNow.boundary}</p>
+          <button type="button" className="linkbtn" onClick={() => setView("explore")}>
+            Explore life areas →
+          </button>
         </section>
       )}
 
-      {view === "explore" && (
-        <>
-          <nav className="flex flex-wrap gap-2" aria-label="Chart themes">
+      {view === "explore" && topicId == null && (
+        <section className="grid gap-6">
+          <nav className="atlas-themes" aria-label="Chart themes">
             {groups.map((g) => (
               <button
                 key={g.id}
                 type="button"
+                className={`atlas-theme${groupId === g.id ? " is-on" : ""}`}
                 aria-current={groupId === g.id ? "true" : undefined}
-                className={`text-[13px] px-3.5 py-1.5 rounded-full border hair transition-colors ${
-                  groupId === g.id
-                    ? "bg-[var(--accent-wash)] border-[var(--accent)] text-[var(--ink)]"
-                    : "muted hover:text-[var(--ink)]"
-                }`}
                 onClick={() => selectGroup(g.id)}
               >
                 {g.label}
               </button>
             ))}
           </nav>
-
-          <div className="grid lg:grid-cols-[13rem_minmax(0,1fr)] gap-6 lg:gap-10 min-w-0">
-            <nav className="grid gap-1 self-start" aria-label="Topics in this theme">
-              {(group?.topics ?? []).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => selectTopic(t.id)}
-                  className={`text-left px-3 py-2.5 rounded-[10px] text-[13.5px] leading-snug transition-colors ${
-                    topic?.id === t.id ? "bg-[var(--accent-wash)] text-[var(--ink)]" : "muted hover:text-[var(--ink)]"
-                  }`}
-                  aria-current={topic?.id === t.id ? "page" : undefined}
-                >
-                  <span className="block font-medium text-[var(--ink)]">{t.label}</span>
-                  {t.classical && <span className="block text-[11.5px] muted mt-0.5">{t.classical}</span>}
+          <ul className="atlas-topics" aria-label="Topics in this theme">
+            {(group?.topics ?? []).map((t) => (
+              <li key={t.id}>
+                <button type="button" className="atlas-topic" onClick={() => selectTopic(t.id)}>
+                  <span className="atlas-topic__name">{t.label}</span>
+                  <span className="atlas-topic__hint">{t.plain}</span>
                 </button>
-              ))}
-            </nav>
-
-            {topic && (
-              <article className="panel-soft px-4 sm:px-5 py-4 sm:py-5 min-w-0 grid gap-4">
-                <header className="max-w-[36rem]">
-                  <p className="eyebrow">{topic.groupLabel}</p>
-                  <h3 className="serif text-[clamp(1.35rem,3.5vw,1.85rem)] leading-tight mt-1">{topic.label}</h3>
-                  {topic.classical && <p className="text-[12.5px] muted mt-1">{topic.classical}</p>}
-                </header>
-
-                <div className="flex flex-wrap gap-2" role="tablist" aria-label="Topic views">
-                  {(
-                    [
-                      { id: "words" as const, name: "Counsel", show: !!topic.readingId },
-                      { id: "about" as const, name: "What this is" },
-                      { id: "map" as const, name: "Chart map", show: !!(topic.placementId || topic.factId) },
-                    ] as { id: Tab; name: string; show?: boolean }[]
-                  )
-                    .filter((x) => x.show !== false)
-                    .map((x) => (
-                      <button
-                        key={x.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === x.id}
-                        className={`text-[13px] px-3.5 py-1.5 rounded-full border hair transition-colors ${
-                          tab === x.id
-                            ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--paper)]"
-                            : "muted hover:text-[var(--ink)]"
-                        }`}
-                        onClick={() => setTab(x.id)}
-                      >
-                        {x.name}
-                      </button>
-                    ))}
-                </div>
-
-                {tab === "words" && topic.readingId && <TopicWords reading={reading} name={name} />}
-
-                {tab === "about" && (
-                  <div className="grid gap-3 max-w-[36rem] text-[14.5px] leading-relaxed">
-                    <p>{topic.plain}</p>
-                    {subtitle?.relevance && (
-                      <p className="note text-[13.5px] leading-snug">
-                        <span className="eyebrow text-[11px] block mb-1.5">For {name}</span>
-                        {subtitle.relevance}
-                      </p>
-                    )}
-                    {topic.placementId || topic.factId ? (
-                      <button type="button" className="see-more w-fit" onClick={() => setTab("map")}>
-                        See where planets sit →
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-
-                {tab === "map" && <TopicMap topic={topic} fact={fact} placement={placement} chart={r} />}
-              </article>
-            )}
-          </div>
-        </>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      {/* Next: blind past-check */}
-      <section className="grid gap-4 pt-2 border-t hair">
-        <div className="max-w-[40rem]">
-          <p className="eyebrow text-[var(--gold)]">Next in the path</p>
-          <h3 className="serif text-[clamp(1.25rem,3vw,1.6rem)] leading-tight mt-1">Blind past-check</h3>
-          <p className="muted mt-2 text-[14px] leading-relaxed">
-            The atlas stays yours. The next step tests the chart against periods you already lived — you score each
-            claim. Only after that do forward reports and guidance open.
-          </p>
-        </div>
-        <ol className="grid gap-2 max-w-[36rem] text-[13.5px] leading-snug">
-          {[
-            { t: "Blind past-check", d: "Generate claims about your past; mark each right, wrong, or unclear." },
-            { t: "Forward reports", d: "Timeline and vocation written with that score in hand." },
-            { t: "Decade guidance", d: "Same substance in plain language." },
-            { t: "Living protocol", d: "One HTML page that stays current when you reopen it." },
-          ].map((x) => (
-            <li key={x.t} className="panel-soft px-4 py-3">
-              <p className="font-medium text-[14px]">{x.t}</p>
-              <p className="muted mt-1">{x.d}</p>
-            </li>
-          ))}
-        </ol>
-        <div className="btn-row flex-wrap">
+      {view === "explore" && topic && topicId != null && (
+        <article className="atlas-focus">
           <button
             type="button"
-            className="btn btn-primary"
-            onClick={() => (onContinueToPast ?? onUnlockHint)?.()}
+            className="linkbtn atlas-focus__back"
+            onClick={() => setTopicId(null)}
           >
-            {r.canAccessPaid ? "Continue to blind past-check →" : "See how the past-check works →"}
+            ← All topics
           </button>
-        </div>
-        {r.canAccessPaid
-          ? null
-          : process.env.NODE_ENV !== "production" && (
-              <p className="note text-[12.5px] max-w-[36rem]">
-                QA: flip plan in the header, or sign in as <code className="text-[12px]">paid@test.local</code>.
+          <header>
+            <p className="atlas-focus__kicker">{topic.groupLabel}</p>
+            <h3 className="atlas-focus__title">{topic.label}</h3>
+            {topic.classical && <p className="atlas-focus__classical">{topic.classical}</p>}
+          </header>
+
+          {topic.readingId && (
+            <div className="atlas-focus__section">
+              <h4>Counsel</h4>
+              <TopicWords reading={reading} name={name} />
+            </div>
+          )}
+
+          <div className="atlas-focus__section">
+            <h4>What this is</h4>
+            <p>{topic.plain}</p>
+            {subtitle?.relevance && (
+              <p className="note text-[13.5px] leading-snug" style={{ marginTop: 8 }}>
+                <span className="muted" style={{ display: "block", marginBottom: 2 }}>
+                  For {name}
+                </span>
+                {subtitle.relevance}
               </p>
             )}
-      </section>
+          </div>
+
+          {(topic.placementId || topic.factId) && (
+            <div className="atlas-focus__section">
+              <h4>Chart map</h4>
+              <TopicMap topic={topic} fact={fact} placement={placement} chart={r} />
+            </div>
+          )}
+        </article>
+      )}
+
     </div>
   );
 }
@@ -493,7 +393,7 @@ function TopicMap({
           </thead>
           <tbody>
             {chart.chart.planets.map((p) => (
-              <tr key={p.name} className="border-t hair">
+              <tr key={p.name} className=" ">
                 <td className="py-1 pr-2">{p.name}</td>
                 <td className="py-1 pr-2">{p.sign}</td>
                 <td className="py-1">{p.house}</td>
@@ -519,7 +419,7 @@ function TopicMap({
           </thead>
           <tbody>
             {chart.chart.planets.map((p) => (
-              <tr key={p.name} className="border-t hair">
+              <tr key={p.name} className=" ">
                 <td className="py-1 pr-2">
                   {p.name}
                   {p.vargottama ? " *" : ""}
@@ -552,7 +452,7 @@ function TopicMap({
         </thead>
         <tbody>
           {slice.planets.map((p) => (
-            <tr key={p.name} className="border-t hair">
+            <tr key={p.name} className=" ">
               <td className="py-1 pr-2">{p.name}</td>
               <td className="py-1">{p.sign}</td>
             </tr>
@@ -574,16 +474,16 @@ function TopicWords({ reading, name }: { reading?: ReadingModule; name: string }
         <p className="font-medium">{card.headline}</p>
         <dl className="grid gap-3">
           <div>
-            <dt className="muted text-[11px] uppercase tracking-wide">Led by</dt>
-            <dd className="mt-0.5">{card.ledBy}</dd>
+            <dt className="muted text-[11px]">One practice</dt>
+            <dd className="mt-0.5 font-medium">{card.focus}</dd>
           </div>
           <div>
-            <dt className="muted text-[11px] uppercase tracking-wide">In this chapter</dt>
+            <dt className="muted text-[11px]">What to watch</dt>
             <dd className="mt-0.5">{card.today}</dd>
           </div>
           <div>
-            <dt className="muted text-[11px] uppercase tracking-wide">Focus</dt>
-            <dd className="mt-0.5 font-medium">{card.focus}</dd>
+            <dt className="muted text-[11px]">What leads it</dt>
+            <dd className="mt-0.5">{card.ledBy}</dd>
           </div>
         </dl>
         {card.chartDetail && (

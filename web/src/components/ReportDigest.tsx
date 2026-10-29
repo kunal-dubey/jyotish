@@ -75,37 +75,27 @@ export default function ReportDigest({
 
   return (
     <ol className="grid gap-2 m-0 p-0 list-none enter">
-      {sections.map((s, i) => {
+      {sections.map((s) => {
         const open = openId === s.id;
-        const n = String(i + 1).padStart(2, "0");
         return (
           <li key={s.id}>
             <div className={`panel ${open ? "report-open" : ""}`}>
               <button
                 type="button"
-                className="w-full text-left bg-transparent border-0 p-0 cursor-pointer text-inherit grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 items-start"
+                className="w-full text-left bg-transparent border-0 p-0 cursor-pointer text-inherit grid gap-1.5"
                 aria-expanded={open}
                 onClick={() => setOpenId(open ? null : s.id)}
               >
-                <span className={`serif text-[1.05rem] leading-snug pt-0.5 ${open ? "text-[var(--gold)]" : "muted"}`}>
-                  {n}
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="serif text-[clamp(1.15rem,3vw,1.35rem)] leading-snug font-medium">{s.title}</span>
+                  <span className="see-more shrink-0 text-[13px]">{open ? "Close" : "Read"}</span>
                 </span>
-                <span className="min-w-0 grid gap-1.5">
-                  <span className="flex items-baseline justify-between gap-3">
-                    <span className="serif text-[clamp(1.15rem,3vw,1.35rem)] leading-snug font-medium">
-                      {s.title}
-                    </span>
-                    <span className="see-more shrink-0 text-[12.5px]">{open ? "Close" : "Read"}</span>
-                  </span>
-                  {!open && s.preview && (
-                    <span className="block muted text-[13.5px] leading-relaxed max-w-[38rem] font-[family-name:var(--font-plex)]">
-                      {s.preview}
-                    </span>
-                  )}
-                </span>
+                {!open && s.preview && (
+                  <span className="block muted text-[14px] leading-relaxed max-w-[38rem]">{s.preview}</span>
+                )}
               </button>
               {open && (
-                <div className="mt-4 pt-4 border-t hair pl-0 sm:pl-[calc(2.5rem+0.75rem)] max-w-[40rem]">
+                <div className="mt-4 max-w-[40rem]">
                   <Markdown text={s.body} />
                 </div>
               )}

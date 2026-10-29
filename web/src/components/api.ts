@@ -84,7 +84,7 @@ export const api = {
     fetch(`/api/admin/usage?days=${days}`, opts()).then((r) => json<LlmUsageReport>(r)),
   list: () =>
     fetch("/api/readings", opts()).then((r) =>
-      json<{ id: string; name: string; date: string; place: string; lagna: string; status: string; updatedAt: string }[]>(r),
+      json<{ id: string; name: string; date: string; time?: string; place: string; lagna: string; status: string; updatedAt: string }[]>(r),
     ),
   get: (id: string) => fetch(`/api/readings/${id}`, opts()).then((r) => json<LoadedReading>(r)),
   create: (intake: unknown) =>

@@ -105,3 +105,52 @@ ${body}
 export function chartSvg(chart: Chart, style: ChartStyle): string {
   return style === "south" ? south(chart) : north(chart);
 }
+
+const SIGNS = [
+  "Aries",
+  "Taurus",
+  "Gemini",
+  "Cancer",
+  "Leo",
+  "Virgo",
+  "Libra",
+  "Scorpio",
+  "Sagittarius",
+  "Capricorn",
+  "Aquarius",
+  "Pisces",
+];
+
+/** Remap natal chart into navamsa (D9) signs and draw with the same renderer. */
+export function navamsaSvg(chart: Chart, style: ChartStyle): string {
+  const d9 = chart.vargas?.d9;
+  const lagnaSign = d9?.lagna ?? chart.ascendant.navamsa;
+  const lagnaIdx = Math.max(0, SIGNS.indexOf(lagnaSign));
+  const planets = chart.planets.map((p) => {
+    const fromVarga = d9?.planets.find((x) => x.name === p.name);
+    const sign = fromVarga?.sign ?? p.navamsa;
+    const sign_index = fromVarga?.sign_index ?? Math.max(0, SIGNS.indexOf(sign));
+    return {
+      ...p,
+      sign,
+      sign_index,
+      house: ((sign_index - lagnaIdx + 12) % 12) + 1,
+      dignity: fromVarga?.dignity ?? p.dignity,
+    };
+  });
+  const remapped: Chart = {
+    ...chart,
+    ascendant: {
+      ...chart.ascendant,
+      sign: lagnaSign,
+      sign_index: lagnaIdx,
+      lord: d9?.lagna_lord ?? chart.ascendant.lord,
+    },
+    planets,
+  };
+  const svg = chartSvg(remapped, style);
+  return svg.replace(
+    /aria-label="[^"]*"/,
+    `aria-label="Navamsa (D9) chart, ${esc(lagnaSign)} rising"`,
+  );
+}

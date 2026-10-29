@@ -4,6 +4,7 @@ import AdminUsage from "./AdminUsage";
 import AuthScreen from "./AuthScreen";
 import Home from "./Home";
 import Landing from "./Landing";
+import NewReadingDialog from "./NewReadingDialog";
 import Onboarding from "./Onboarding";
 import ReadingView from "./ReadingView";
 import { api, type AuthUser } from "./api";
@@ -24,9 +25,19 @@ function parse(hash: string): Route {
   return { name: "home" };
 }
 
-export default function App() {
+function BrandMark() {
+  return (
+    <svg className="brand__mark" viewBox="0 0 24 24" aria-hidden focusable="false">
+      <rect x="1" y="1" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="7" y="7" width="10" height="10" fill="currentColor" />
+    </svg>
+  );
+}
+
+function Shell() {
   const [route, setRoute] = useState<Route | null>(null);
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
+  const [newOpen, setNewOpen] = useState(false);
 
   useEffect(() => {
     const on = () => setRoute(parse(window.location.hash));
@@ -71,72 +82,71 @@ export default function App() {
 
   return (
     <div className="min-h-dvh">
-      <header className="site-header">
-        <div className="header-inner mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 flex items-center justify-between gap-2 sm:gap-4">
-          <a href="#/" className="serif text-[17px] sm:text-[19px] tracking-tight shrink-0">
-            Jyotish <span className="muted italic">protocol</span>
+      <header className="topbar site-header">
+        <div className="topbar__in">
+          <a href="#/" className="brand" aria-label="Jyotish, back to all readings">
+            <BrandMark />
+            <span className="brand__name">Jyotish</span>
           </a>
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-            {user ? (
-              <>
-                <span className="text-[12px] muted hidden md:inline truncate max-w-[10rem]">
-                  {user.email}
-                  <span className="opacity-70"> · {user.plan ?? "free"}</span>
-                </span>
-                {user.plan === "admin" && (
-                  <a href="#/admin/usage" className="btn btn-quiet text-[13px] sm:text-[14px]">
-                    Usage
-                  </a>
-                )}
-                {process.env.NODE_ENV !== "production" ? (
-                  <select
-                    className="text-[12px] bg-transparent muted border hair rounded-full px-2 py-1 max-w-[6.5rem]"
-                    aria-label="QA plan"
-                    value={user.plan ?? "free"}
-                    onChange={async (e) => {
-                      try {
-                        const next = await api.setPlan(e.target.value as "free" | "paid" | "admin");
-                        setUser(next);
-                        if (window.location.hash.startsWith("#/r/")) window.location.reload();
-                      } catch (err) {
-                        alert(err instanceof Error ? err.message : String(err));
-                      }
-                    }}
-                  >
-                    <option value="free">free</option>
-                    <option value="paid">paid</option>
-                    <option value="admin">admin</option>
-                  </select>
-                ) : null}
-                {route.name !== "begin" && (
-                  <a href="#/begin" className="btn btn-quiet text-[13px] sm:text-[14px]">
-                    <span className="sm:hidden">New</span>
-                    <span className="hidden sm:inline">New reading</span>
-                  </a>
-                )}
-                <button type="button" className="btn btn-quiet text-[13px] sm:text-[14px]" onClick={logout}>
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <>
-                {route.name !== "begin" && (
-                  <a href="#/begin" className="btn btn-quiet text-[13px] sm:text-[14px]">
-                    Begin
-                  </a>
-                )}
-                {route.name !== "auth" && (
-                  <a href="#/auth" className="btn btn-ghost text-[13px] sm:text-[14px]">
-                    Sign in
-                  </a>
-                )}
-              </>
-            )}
-          </div>
+
+          <div className="topbar__spacer" />
+
+          {user ? (
+            <>
+              <span className="account">{user.email}</span>
+              {user.plan === "admin" && (
+                <a href="#/admin/usage" className="btn btn--ghost btn--sm">
+                  Usage
+                </a>
+              )}
+              {process.env.NODE_ENV !== "production" ? (
+                <select
+                  className="text-[12px] bg-[var(--s2)] muted rounded-[10px] px-2 py-1 max-w-[6.5rem] min-h-10"
+                  aria-label="QA plan"
+                  value={user.plan ?? "free"}
+                  onChange={async (e) => {
+                    try {
+                      const next = await api.setPlan(e.target.value as "free" | "paid" | "admin");
+                      setUser(next);
+                      if (window.location.hash.startsWith("#/r/")) window.location.reload();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : String(err));
+                    }
+                  }}
+                >
+                  <option value="free">free</option>
+                  <option value="paid">paid</option>
+                  <option value="admin">admin</option>
+                </select>
+              ) : null}
+              <button type="button" className="btn btn--tinted btn--sm" onClick={() => setNewOpen(true)}>
+                + New Reading
+              </button>
+              <button type="button" className="btn btn--quiet btn--sm" onClick={logout}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn btn--tinted btn--sm" onClick={() => setNewOpen(true)}>
+                Begin
+              </button>
+              {route.name !== "auth" && (
+                <a href="#/auth" className="btn btn--ghost btn--sm">
+                  Sign in
+                </a>
+              )}
+            </>
+          )}
         </div>
       </header>
 
-      {showLanding && <Landing onSignIn={() => (window.location.hash = "#/auth")} />}
+      {showLanding && (
+        <Landing
+          onSignIn={() => (window.location.hash = "#/auth")}
+          onBegin={() => setNewOpen(true)}
+        />
+      )}
       {showAuth && (
         <AuthScreen
           onAuthed={(u) => {
@@ -152,9 +162,28 @@ export default function App() {
           onCreated={(r) => (window.location.hash = `#/r/${r.id}`)}
         />
       )}
-      {showHome && <Home />}
+      {showHome && <Home onNewReading={() => setNewOpen(true)} />}
       {showAdminUsage && <AdminUsage />}
       {showReading && route.name === "reading" && <ReadingView key={route.id} id={route.id} />}
+
+      <footer className="site-foot">
+        <p>Prototype. Sample chart and interpretation copy, not medical, financial or legal advice.</p>
+      </footer>
+
+      <NewReadingDialog
+        open={newOpen}
+        user={user ?? null}
+        onAuthed={setUser}
+        onCreated={(r) => {
+          setNewOpen(false);
+          window.location.hash = `#/r/${r.id}`;
+        }}
+        onClose={() => setNewOpen(false)}
+      />
     </div>
   );
+}
+
+export default function App() {
+  return <Shell />;
 }

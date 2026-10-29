@@ -82,9 +82,8 @@ export default function IntakeForm({
     <main className={initial ? "min-w-0" : "mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 py-8 sm:py-10 md:py-16 min-w-0"}>
       <form onSubmit={submit} className="grid lg:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] gap-8 lg:gap-20 enter">
         <div className="min-w-0">
-          <p className="eyebrow">Stage 0</p>
-          <h1 className="serif text-[clamp(1.75rem,5vw,2.375rem)] leading-tight mt-2">
-            {initial ? "Correct the birth data" : "Intake"}
+          <h1 className="serif text-[clamp(1.75rem,5vw,2.375rem)] leading-tight">
+            {initial ? "Correct the birth data" : "Birth details"}
           </h1>
           <p className="muted mt-4 max-w-[26rem] text-[14.5px] sm:text-[15px]">
             Four things are required. The time matters most: the rising sign can change in a few minutes, and a wrong
@@ -114,7 +113,7 @@ export default function IntakeForm({
               <span>Date of birth</span>
               <input className="input" type="date" required value={f.date ?? ""} onChange={(e) => set("date", e.target.value)} />
             </label>
-            <div className="field sm:col-span-2">
+            <div className="field">
               <span>Time of birth, local clock</span>
               <TimeField value={f.time ?? ""} onChange={(v) => set("time", v)} />
             </div>
@@ -169,7 +168,7 @@ export default function IntakeForm({
             />
             {searching && <small>Searching…</small>}
             {results.length > 0 && (
-              <ul className="border hair rounded-[4px] mt-1 max-h-64 overflow-auto bg-[var(--paper)]" role="listbox" id="place-results">
+              <ul className="rounded-[4px] mt-1 max-h-64 overflow-auto bg-[var(--paper-2)]" role="listbox" id="place-results">
                 {results.map((r, k) => (
                   <li key={k}>
                     <button
@@ -212,11 +211,10 @@ export default function IntakeForm({
             )}
           </div>
 
-          <fieldset className="grid gap-4 border-t hair pt-6">
-            <legend className="eyebrow mb-3">Optional</legend>
-            <p className="text-[13.5px] muted -mt-2">
-              These sharpen the later reports. The app holds them back from the model until the past-check has been
-              scored, so they cannot leak into it.
+          <fieldset className="grid gap-4 pt-2">
+            <legend className="text-[14px] font-medium mb-1">Optional</legend>
+            <p className="text-[14px] muted">
+              These sharpen later reports. They are held back until the past check is scored.
             </p>
             <label className="field">
               <span>What they do for a living</span>

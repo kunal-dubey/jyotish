@@ -13,6 +13,7 @@ export async function GET() {
       id: r.id,
       name: r.intake.callName || r.intake.name,
       date: r.intake.date,
+      time: r.intake.time,
       place: r.intake.place.label,
       lagna: r.chart.ascendant.sign,
       status: r.status,

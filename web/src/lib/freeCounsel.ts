@@ -95,7 +95,8 @@ async function callFreeCounselLlm(r: Reading): Promise<FreeCounsel> {
   const pack = buildFreeCounselPack(r.chart, r.intake);
   const model = llmModelForFreeCounsel();
   const anthropicExtras = modelSupportsAnthropicExtras(model);
-  const maxTokens = isFreeOpenRouterModel(model) ? 4000 : 6000;
+  // Sonnet 5.5 always thinks — leave headroom for JSON after reasoning.
+  const maxTokens = isFreeOpenRouterModel(model) ? 4000 : modelSupportsAnthropicExtras(model) ? 16000 : 6000;
 
   const routingExtras = usingOpenRouter()
     ? ({
@@ -139,7 +140,7 @@ Include every varga key: ${FREE_VARGA_KEYS.join(", ")}.`;
       model,
       max_tokens: maxTokens,
       ...routingExtras,
-      thinking: { type: "adaptive", display: "summarized" },
+      thinking: { type: "adaptive", display: "omitted" },
       output_config: {
         effort: "low",
         format: zodOutputFormat(FreeCounselLlmSchema),

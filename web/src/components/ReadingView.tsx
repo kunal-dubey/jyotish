@@ -7,161 +7,119 @@ import ChartPanel from "./ChartPanel";
 import ScorePanel from "./ScorePanel";
 import StageRunner from "./StageRunner";
 import ModulesPanel from "./ModulesPanel";
+import { TermLink } from "./TermLink";
 
-type Section = "chart" | "modules" | "past" | "reports" | "guidance" | "protocol";
-type Phase = "foundation" | "protocol";
+/** Four stages — names match the UX spec. */
+type Path = "confirm" | "today" | "past" | "forward";
+type ForwardTab = "reports" | "guidance" | "protocol";
 
 const at = (s: Status) => STATUS_ORDER.indexOf(s);
 
-type SectionDef = {
-  id: Section;
-  n: string;
+const PATH: {
+  id: Path;
   title: string;
   short: string;
-  /** One line in the rail. */
-  sub: string;
-  /** What this step is for (header strip). */
   purpose: string;
-  /** What the user does here. */
-  youDo: string;
-  phase: Phase;
   doneAt: Status;
   openAt: Status;
-  highlight?: boolean;
   paid?: boolean;
-  next?: Section;
-  nextLabel?: string;
-  back?: Section;
-  backLabel?: string;
-};
-
-const SECTIONS: SectionDef[] = [
+}[] = [
   {
-    id: "chart",
-    n: "1",
-    title: "Birth chart",
-    short: "Chart",
-    sub: "Confirm the moment",
-    purpose: "Lock the birth data the whole reading rests on.",
-    youDo: "Check date, time, and place. Confirm only when they look right.",
-    phase: "foundation",
+    id: "confirm",
+    title: "Confirm the Birth Moment",
+    short: "Birth Chart",
+    purpose: "Changing details later resets confirmation and any past-check scores.",
     doneAt: "confirmed",
     openAt: "chart",
-    next: "modules",
-    nextLabel: "Continue to chart atlas",
   },
   {
-    id: "modules",
-    n: "2",
-    title: "Chart atlas",
-    short: "Atlas",
-    sub: "Life areas · free",
-    purpose: "See how each life area sits for you right now — in plain words.",
-    youDo: "Read Right now, open any area for more detail. No scoring yet.",
-    phase: "foundation",
+    id: "today",
+    title: "Chart Atlas",
+    short: "Chart Atlas",
+    purpose: "Twelve areas of life, one plain line each. Open an area to see why it reads that way, then open it further for the chart behind it.",
     doneAt: "confirmed",
     openAt: "chart",
-    back: "chart",
-    backLabel: "Birth chart",
-    next: "past",
-    nextLabel: "Continue to blind past-check",
   },
   {
     id: "past",
-    n: "3",
-    title: "Blind past-check",
-    short: "Past-check",
-    sub: "Score the claims",
-    purpose: "Test the chart against periods you already lived — before any forward counsel.",
-    youDo: "Generate claims, mark each right / wrong / unclear. That score calibrates everything after.",
-    phase: "protocol",
+    title: "Past-Check",
+    short: "Past-Check",
+    purpose: "Statements written from the chart before anyone read your history. Score each one against what actually happened.",
     doneAt: "scored",
     openAt: "confirmed",
-    highlight: true,
     paid: true,
-    back: "modules",
-    backLabel: "Chart atlas",
-    next: "reports",
-    nextLabel: "Continue to reports",
   },
   {
-    id: "reports",
-    n: "4",
-    title: "Forward reports",
+    id: "forward",
+    title: "Reports",
     short: "Reports",
-    sub: "Timeline & vocation",
-    purpose: "Detailed forward reading written with your past-check score in hand.",
-    youDo: "Generate Reports 3–6, then open sections when you want depth.",
-    phase: "protocol",
-    doneAt: "reports",
+    purpose: "Forward reports sit behind the past-check. This is what opens, and when.",
+    doneAt: "protocol",
     openAt: "scored",
     paid: true,
-    back: "past",
-    backLabel: "Past-check",
-    next: "guidance",
-    nextLabel: "Continue to guidance",
-  },
-  {
-    id: "guidance",
-    n: "5",
-    title: "Decade guidance",
-    short: "Guidance",
-    sub: "Plain language",
-    purpose: "The same substance without classical vocabulary — priorities for the decade.",
-    youDo: "Generate guidance, then read at your pace.",
-    phase: "protocol",
-    doneAt: "guidance",
-    openAt: "reports",
-    paid: true,
-    back: "reports",
-    backLabel: "Reports",
-    next: "protocol",
-    nextLabel: "Continue to living protocol",
-  },
-  {
-    id: "protocol",
-    n: "6",
-    title: "Living protocol",
-    short: "Protocol",
-    sub: "A page to keep",
-    purpose: "One HTML page that keeps weekday, periods, and season current when you reopen it.",
-    youDo: "Build once, download or bookmark, return anytime.",
-    phase: "protocol",
-    doneAt: "protocol",
-    openAt: "guidance",
-    paid: true,
-    back: "guidance",
-    backLabel: "Guidance",
   },
 ];
 
-const PHASE_LABEL: Record<Phase, string> = {
-  foundation: "Included with every reading",
-  protocol: "Full protocol",
-};
+function furthest(s: Status, paidOk: boolean): Path {
+  if (s === "chart") return "confirm";
+  if (s === "confirmed") return "today";
+  if (!paidOk) return "today";
+  if (at(s) < at("scored")) return "past";
+  return "forward";
+}
 
-function furthest(s: Status, paidOk: boolean): Section {
-  // Prefer atlas while still on chart/confirmed before past-check is generated.
-  if (s === "chart" || s === "confirmed") return s === "chart" ? "chart" : "modules";
-  const open = SECTIONS.filter((x) => {
-    if (x.paid && !paidOk) return false;
-    return at(s) >= at(x.openAt);
-  });
-  if (!open.length) return "chart";
-  return open[open.length - 1].id;
+function forwardTabFor(s: Status): ForwardTab {
+  if (at(s) >= at("protocol")) return "protocol";
+  if (at(s) >= at("guidance")) return "guidance";
+  return "reports";
+}
+
+function stageNote(s: (typeof PATH)[number], reading: LoadedReading, paidOk: boolean, done: boolean, open: boolean) {
+  if (s.id === "confirm") return done ? "Confirmed" : "Check the details";
+  if (s.id === "today") {
+    if (done) return "Read";
+    if (open) return "Twelve areas of life";
+    return "After the chart";
+  }
+  if (s.id === "past") {
+    if (!paidOk) return "After the past-check";
+    if (reading.status === "scored" || at(reading.status) > at("scored")) {
+      const claims = reading.outputs.claims ?? [];
+      const points = claims.reduce((sum, c) => {
+        const v = reading.scores[c.id];
+        if (v === "right") return sum + 2;
+        if (v === "unclear") return sum + 1;
+        return sum;
+      }, 0);
+      return claims.length ? `Scored ${points} of ${claims.length * 2}` : "Scored";
+    }
+    if (reading.outputs.claims?.length) {
+      const answered = reading.outputs.claims.filter((c) => reading.scores[c.id]).length;
+      return `${answered} of ${reading.outputs.claims.length} scored`;
+    }
+    if (at(reading.status) >= at("confirmed")) return "After the atlas";
+    return "After the chart";
+  }
+  if (!paidOk || !open) return "After the past-check";
+  if (done || at(reading.status) >= at("reports")) return "Open";
+  return "After the past-check";
 }
 
 export default function ReadingView({ id }: { id: string }) {
   const [r, setR] = useState<LoadedReading | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [section, setSection] = useState<Section | null>(null);
+  const [path, setPath] = useState<Path | null>(null);
+  const [forwardTab, setForwardTab] = useState<ForwardTab>("reports");
   const [showFoundation, setShowFoundation] = useState(false);
+  const [editBirth, setEditBirth] = useState(false);
 
   const onReading = useCallback((next: LoadedReading) => {
     setR((prev) => {
-      // After confirm → atlas (not skip to past). After scoring → reports.
-      if (prev?.status === "chart" && next.status === "confirmed") setSection("modules");
-      if (prev?.status === "past_check" && next.status === "scored") setSection("reports");
+      if (prev?.status === "chart" && next.status === "confirmed") setPath("today");
+      if (prev?.status === "past_check" && next.status === "scored") {
+        setPath("forward");
+        setForwardTab("reports");
+      }
       return {
         ...next,
         modules: next.modules ?? prev?.modules,
@@ -175,7 +133,8 @@ export default function ReadingView({ id }: { id: string }) {
     api.get(id).then(
       (x) => {
         setR(x);
-        setSection(furthest(x.status, !!x.canAccessPaid));
+        setPath(furthest(x.status, !!x.canAccessPaid));
+        setForwardTab(forwardTabFor(x.status));
       },
       (e) => setErr(e.message),
     );
@@ -188,9 +147,9 @@ export default function ReadingView({ id }: { id: string }) {
   }, [r?.generating, id, onReading]);
 
   if (err) return <p className="note note-bad m-4 sm:m-8">{err}</p>;
-  if (!r || !section) {
+  if (!r || !path) {
     return (
-      <div className="sky min-h-[40vh] grid place-items-center">
+      <div className="app-shell grid place-items-center min-h-[40vh]">
         <span className="pulse" aria-hidden />
       </div>
     );
@@ -199,36 +158,28 @@ export default function ReadingView({ id }: { id: string }) {
   const reading = r;
   const name = reading.intake.callName || reading.intake.name;
   const paidOk = !!reading.canAccessPaid;
-  const current = SECTIONS.find((s) => s.id === section)!;
+  const current = PATH.find((s) => s.id === path)!;
+  const asc = reading.chart.ascendant.sign;
 
-  const isOpen = (s: SectionDef) => {
+  const isOpen = (s: (typeof PATH)[number]) => {
     if (s.paid && !paidOk) return true;
+    if (s.id === "today") return at(reading.status) >= at("chart");
     return at(reading.status) >= at(s.openAt);
   };
 
-  const canGoNext = (s: SectionDef) => {
-    if (!s.next) return false;
-    const next = SECTIONS.find((x) => x.id === s.next)!;
-    if (next.paid && !paidOk) return true; // show paid gate
-    if (s.id === "chart") return at(reading.status) >= at("confirmed");
-    if (s.id === "modules") return at(reading.status) >= at("confirmed");
-    if (s.id === "past") return at(reading.status) >= at("scored");
-    if (s.id === "reports") return at(reading.status) >= at("reports");
-    if (s.id === "guidance") return at(reading.status) >= at("guidance");
-    return false;
+  const isDone = (s: (typeof PATH)[number]) => {
+    if (s.id === "today") return at(reading.status) >= at("confirmed");
+    if (s.id === "forward") return at(reading.status) >= at("reports");
+    return at(reading.status) >= at(s.doneAt);
   };
 
-  const claimsReady = !!(reading.outputs.claims && reading.outputs.claims.length > 0);
-  const pastGenerating = reading.generating === "past";
-  const showPastRunner = !claimsReady || showFoundation || pastGenerating;
-
-  function selectSection(s: SectionDef) {
-    if (s.id === "modules" || at(reading.status) >= at(s.openAt) || (s.paid && !paidOk)) setSection(s.id);
+  function selectPath(s: (typeof PATH)[number]) {
+    if (s.id === "today" || at(reading.status) >= at(s.openAt) || (s.paid && !paidOk)) setPath(s.id);
   }
 
-  function go(id: Section) {
-    const s = SECTIONS.find((x) => x.id === id);
-    if (s) selectSection(s);
+  function go(next: Path) {
+    const s = PATH.find((x) => x.id === next);
+    if (s) selectPath(s);
   }
 
   async function remove() {
@@ -237,344 +188,336 @@ export default function ReadingView({ id }: { id: string }) {
     window.location.hash = "#/";
   }
 
-  const foundationSecs = SECTIONS.filter((s) => s.phase === "foundation");
-  const protocolSecs = SECTIONS.filter((s) => s.phase === "protocol");
-
-  function RailGroup({ phase, items }: { phase: Phase; items: SectionDef[] }) {
-    return (
-      <div className="grid gap-1">
-        <p className="eyebrow text-[10.5px] px-1.5 mb-1">{PHASE_LABEL[phase]}</p>
-        {items.map((s, k) => (
-          <div key={s.id}>
-            <a
-              href={`#/r/${reading.id}`}
-              aria-current={section === s.id ? "step" : undefined}
-              aria-disabled={!isOpen(s)}
-              className={`${at(reading.status) >= at(s.doneAt) ? "done" : ""} ${s.highlight ? "highlight" : ""}`}
-              onClick={(e) => {
-                e.preventDefault();
-                selectSection(s);
-              }}
-              style={
-                !isOpen(s) || (s.paid && !paidOk)
-                  ? { opacity: s.paid && !paidOk ? 0.7 : 0.4, cursor: s.paid && !paidOk ? "pointer" : "not-allowed" }
-                  : undefined
-              }
-            >
-              <span className="dot">
-                {at(reading.status) >= at(s.doneAt) ? "✓" : s.paid && !paidOk ? "·" : s.n}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[14px] font-medium">
-                  {s.title}
-                  {s.paid && !paidOk ? <span className="muted font-normal"> · locked</span> : null}
-                </span>
-                <span className="block text-[12px] muted">{s.sub}</span>
-              </span>
-            </a>
-            {s.id === "chart" && <div className="stop">confirm</div>}
-            {s.id === "modules" && k === items.length - 1 && phase === "foundation" && (
-              <div className="stop">then protocol</div>
-            )}
-            {s.id === "past" && <div className="stop">score</div>}
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const claimsReady = !!(reading.outputs.claims && reading.outputs.claims.length > 0);
+  const pastGenerating = reading.generating === "past";
+  const showPastRunner = !claimsReady || showFoundation || pastGenerating;
+  const pastScored = at(reading.status) >= at("scored");
 
   return (
-    <div className="sky min-h-[calc(100dvh-3.5rem)]">
-      <div className="mx-auto max-w-[78rem] px-4 sm:px-5 md:px-8 py-6 sm:py-8 md:py-12 grid lg:grid-cols-[15rem_minmax(0,1fr)] gap-6 lg:gap-14">
-        <aside className="lg:sticky lg:top-20 self-start min-w-0">
-          <div className="min-w-0">
-            <h1 className="serif text-[clamp(1.4rem,4vw,1.65rem)] leading-tight truncate">{name}</h1>
-            <p className="text-[13px] muted mt-1">
-              {r.intake.date} · {r.chart.ascendant.sign} lagna
+    <div className="app-shell">
+      <div className="reading enter">
+        <div className="rail">
+          <a href="#/" className="linkbtn rail__back">
+            ‹ All Readings
+          </a>
+          <div className="reading-id">
+            <h1 className="reading-id__name" tabIndex={-1}>
+              {name}
+            </h1>
+            <p className="reading-id__meta">
+              {reading.intake.date} · <span className="num">{reading.intake.time}</span>
+              <br />
+              {reading.intake.place.label}
+              <br />
+              <TermLink
+                termId="lagna"
+                ctx={{
+                  name,
+                  rising: asc,
+                  time: reading.intake.time,
+                  place: reading.intake.place.label,
+                }}
+              >
+                {asc} rising
+              </TermLink>
+              {reading.status === "chart" ? ", not confirmed" : ""}
             </p>
+            <button
+              type="button"
+              className="linkbtn"
+              style={{ color: "var(--gold)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
+              onClick={() => {
+                setEditBirth(true);
+                setPath("confirm");
+              }}
+            >
+              Edit Birth Details
+            </button>
           </div>
 
-          <nav className="rail-scroll mt-4 lg:hidden" aria-label="Reading steps">
-            {SECTIONS.map((s) => (
-              <a
-                key={s.id}
-                href={`#/r/${r.id}`}
-                aria-current={section === s.id ? "step" : undefined}
-                aria-disabled={!isOpen(s)}
-                className={`${at(r.status) >= at(s.doneAt) ? "done" : ""} ${s.highlight ? "highlight" : ""}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  selectSection(s);
-                }}
-                style={
-                  !isOpen(s) || (s.paid && !paidOk)
-                    ? { opacity: s.paid && !paidOk ? 0.65 : 0.4, cursor: s.paid && !paidOk ? "pointer" : "not-allowed" }
-                    : undefined
-                }
-              >
-                <span className="dot">{at(r.status) >= at(s.doneAt) ? "✓" : s.paid && !paidOk ? "🔒" : s.n}</span>
-                {s.short}
-              </a>
-            ))}
+          <nav aria-label="Reading stages">
+            <ol className="stepper">
+              {PATH.map((s) => {
+                const open = isOpen(s);
+                const done = isDone(s);
+                const currentStep = path === s.id;
+                const locked = !open && !(s.paid && !paidOk);
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className={`stage${currentStep ? " is-current" : ""}${done ? " is-done" : ""}${locked ? " is-locked" : ""}`}
+                      aria-current={currentStep ? "step" : undefined}
+                      aria-disabled={locked || undefined}
+                      onClick={() => selectPath(s)}
+                    >
+                      <span className="stage__mark" aria-hidden>
+                        {locked ? (
+                          <svg width="14" height="14" viewBox="0 0 14 14">
+                            <rect x="3.5" y="6.5" width="7" height="5.5" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                            <path d="M5 6.5V5a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                          </svg>
+                        ) : done && !currentStep ? (
+                          <svg width="14" height="14" viewBox="0 0 14 14">
+                            <path d="M3 7.2 5.8 10 11 4" fill="none" stroke="var(--ok)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <span className="stage__dot" />
+                        )}
+                      </span>
+                      <span className="stage__text">
+                        <span className="stage__label">{s.short}</span>
+                        <span className="stage__note">{stageNote(s, reading, paidOk, done, open)}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
           </nav>
 
-          <nav className="rail mt-6 hidden lg:grid gap-5" aria-label="Reading steps">
-            <RailGroup phase="foundation" items={foundationSecs} />
-            <RailGroup phase="protocol" items={protocolSecs} />
-          </nav>
-
-          <button type="button" className="btn btn-quiet text-[12.5px] mt-4 lg:mt-6" onClick={remove}>
+          <button type="button" className="linkbtn" onClick={remove}>
             Delete reading
           </button>
-        </aside>
+        </div>
 
-        <main key={section} className="min-w-0 overflow-x-clip grid gap-8">
-          <SectionIntro section={current} paidLocked={!!(current.paid && !paidOk)} />
+        <section className="stage-main" aria-label={current.short} key={path}>
+          <div className="stage-head">
+            <h2 className="stage-title" tabIndex={-1}>
+              {current.title}
+            </h2>
+            <p className="lede">{current.purpose}</p>
+          </div>
 
-          {section === "chart" && (
+          {path === "confirm" && (
             <>
-              <ChartPanel r={r} onReading={onReading} />
-              <StepNav
-                back={undefined}
-                next={
-                  at(reading.status) >= at("confirmed")
-                    ? { id: "modules", label: "Continue to chart atlas" }
-                    : undefined
-                }
-                nextHint={at(reading.status) < at("confirmed") ? "Confirm the birth data above to unlock the atlas." : undefined}
-                onGo={go}
-              />
-            </>
-          )}
-
-          {section === "modules" && (
-            <>
-              <ModulesPanel
+              <ChartPanel
                 r={r}
-                onContinueToPast={() => go("past")}
-                onUnlockHint={() => go("past")}
+                onReading={(next) => {
+                  setEditBirth(false);
+                  onReading(next);
+                }}
+                startEditing={editBirth}
               />
-              <StepNav
-                back={{ id: "chart", label: "Birth chart" }}
-                next={{ id: "past", label: paidOk ? "Continue to blind past-check" : "See past-check (protocol)" }}
-                onGo={go}
-              />
-            </>
-          )}
-
-          {section === "past" && !paidOk && (
-            <>
-              <PaidGate title="Blind past-check" onModules={() => go("modules")} />
-              <StepNav back={{ id: "modules", label: "Chart atlas" }} onGo={go} />
-            </>
-          )}
-
-          {section === "past" && paidOk && (
-            <>
-              <div className="grid gap-8 sm:gap-10">
-                {!claimsReady && !pastGenerating && (
-                  <div className="max-w-[40rem] panel-soft px-4 sm:px-5 py-4 enter">
-                    <p className="text-[14px] leading-relaxed">
-                      The model sees the name, birth data, and how the time is known — nothing from your occupation or
-                      questions yet. It writes claims about periods you already lived. You score them; that score opens
-                      forward reports.
-                    </p>
-                  </div>
+              <div className="stage-foot">
+                <p>
+                  {at(reading.status) >= at("confirmed")
+                    ? "Chart confirmed. Next: the atlas in plain words — then a blind past-check before any forecast."
+                    : "Confirm the birth details above to continue."}
+                </p>
+                {at(reading.status) >= at("confirmed") && (
+                  <button type="button" className="btn btn--primary" onClick={() => go("today")}>
+                    Continue to Atlas
+                  </button>
                 )}
-
-                {claimsReady && !pastGenerating && (
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="eyebrow">Foundation written</p>
-                    <button type="button" className="see-more" onClick={() => setShowFoundation((v) => !v)}>
-                      {showFoundation ? "Hide foundation" : "Curious? Read the foundation"}
-                    </button>
-                  </div>
-                )}
-
-                {showPastRunner && (
-                  <StageRunner
-                    r={r}
-                    stage="past"
-                    output={r.outputs.past}
-                    label="Generate the past-check"
-                    onReading={onReading}
-                  />
-                )}
-
-                {claimsReady && !pastGenerating && <ScorePanel key={r.outputs.past?.length} r={r} onReading={onReading} />}
               </div>
-              <StepNav
-                back={{ id: "modules", label: "Chart atlas" }}
-                next={
-                  canGoNext(current)
-                    ? { id: "reports", label: "Continue to reports" }
-                    : undefined
-                }
-                nextHint={!canGoNext(current) ? "Score every claim above to unlock reports." : undefined}
-                onGo={go}
-              />
             </>
           )}
 
-          {section === "reports" && !paidOk && (
+          {path === "today" && (
             <>
-              <PaidGate title="Forward reports" onModules={() => go("modules")} />
-              <StepNav back={{ id: "modules", label: "Chart atlas" }} onGo={go} />
-            </>
-          )}
-          {section === "reports" && paidOk && (
-            <>
-              <StageRunner
-                r={r}
-                stage="reports"
-                output={r.outputs.reports}
-                label="Write the reports"
-                onReading={onReading}
-              />
-              <StepNav
-                back={{ id: "past", label: "Past-check" }}
-                next={canGoNext(current) ? { id: "guidance", label: "Continue to guidance" } : undefined}
-                nextHint={!canGoNext(current) ? "Generate the reports to continue." : undefined}
-                onGo={go}
-              />
+              <ModulesPanel r={r} />
+              <div className="stage-foot">
+                <p>Next, the past-check: a handful of statements to score, just a few minutes. The reports open after you score them.</p>
+                <button type="button" className="btn btn--primary" onClick={() => go("past")}>
+                  {paidOk ? "Continue Past-Check" : "See Past-Check"}
+                </button>
+              </div>
             </>
           )}
 
-          {section === "guidance" && !paidOk && (
+          {path === "past" && !paidOk && (
             <>
-              <PaidGate title="Decade guidance" onModules={() => go("modules")} />
-              <StepNav back={{ id: "modules", label: "Chart atlas" }} onGo={go} />
-            </>
-          )}
-          {section === "guidance" && paidOk && (
-            <>
-              <StageRunner
-                r={r}
-                stage="guidance"
-                output={r.outputs.guidance}
-                label="Write the guidance"
-                onReading={onReading}
-              />
-              <StepNav
-                back={{ id: "reports", label: "Reports" }}
-                next={canGoNext(current) ? { id: "protocol", label: "Continue to living protocol" } : undefined}
-                nextHint={!canGoNext(current) ? "Generate guidance to continue." : undefined}
-                onGo={go}
-              />
+              <PaidGate onToday={() => go("today")} />
+              <div className="stage-foot">
+                <button type="button" className="btn btn--ghost" onClick={() => go("today")}>
+                  ← Atlas
+                </button>
+              </div>
             </>
           )}
 
-          {section === "protocol" && !paidOk && (
+          {path === "past" && paidOk && (
             <>
-              <PaidGate title="Living protocol" onModules={() => go("modules")} />
-              <StepNav back={{ id: "modules", label: "Chart atlas" }} onGo={go} />
-            </>
-          )}
-          {section === "protocol" && paidOk && (
-            <>
-              <StageRunner
-                r={r}
-                stage="protocol"
-                output={r.outputs.protocol ? "ready" : undefined}
-                showOutput={false}
-                label="Build the protocol"
-                onReading={onReading}
-              />
-              {r.outputs.protocol && !r.generating && (
-                <div className="grid gap-4">
-                  <div className="btn-row btn-row-stack sm:flex-row">
-                    <a className="btn btn-primary" href={`/api/readings/${r.id}/protocol?download=1`}>
-                      Download HTML
-                    </a>
-                    <a className="btn" href={`/api/readings/${r.id}/protocol`} target="_blank" rel="noreferrer">
-                      Open in a new tab
-                    </a>
-                  </div>
-                  <iframe
-                    key={r.updatedAt}
-                    title="Protocol preview"
-                    src={`/api/readings/${r.id}/protocol`}
-                    className="w-full h-[55vh] sm:h-[70vh] border hair rounded-[12px] bg-white max-w-full"
-                  />
+              {!claimsReady && !pastGenerating && (
+                <div className="panel">
+                  <p>
+                    Claims are written from the name, birth data, and how the time is known. Nothing from occupation or
+                    questions yet.
+                  </p>
                 </div>
               )}
-              <StepNav back={{ id: "guidance", label: "Guidance" }} onGo={go} />
+
+              {claimsReady && !pastGenerating && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="small">Foundation written</p>
+                  <button type="button" className="linkbtn" onClick={() => setShowFoundation((v) => !v)}>
+                    {showFoundation ? "Hide foundation" : "Read the foundation"}
+                  </button>
+                </div>
+              )}
+
+              {showPastRunner && (
+                <StageRunner
+                  r={r}
+                  stage="past"
+                  output={r.outputs.past}
+                  label="Generate the past-check"
+                  onReading={onReading}
+                />
+              )}
+
+              {claimsReady && !pastGenerating && (
+                <ScorePanel key={r.outputs.past?.length} r={r} onReading={onReading} />
+              )}
+
+              <div className="stage-foot">
+                <button type="button" className="btn btn--ghost" onClick={() => go("today")}>
+                  ← Atlas
+                </button>
+                {pastScored && (
+                  <button type="button" className="btn btn--primary" onClick={() => go("forward")}>
+                    Open Reports
+                  </button>
+                )}
+              </div>
             </>
           )}
-        </main>
+
+          {path === "forward" && !paidOk && (
+            <>
+              <PaidGate onToday={() => go("today")} />
+              <div className="stage-foot">
+                <button type="button" className="btn btn--ghost" onClick={() => go("today")}>
+                  ← Atlas
+                </button>
+              </div>
+            </>
+          )}
+
+          {path === "forward" && paidOk && (
+            <>
+              {!pastScored ? (
+                <div className="locked">
+                  <h3>Score the past-check to open these</h3>
+                  <p>Score every claim. Either way the reports open afterwards; a low score adds a note to read them as suggestions.</p>
+                  <button type="button" className="btn btn--primary" onClick={() => go("past")}>
+                    Go to the past-check
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="tab-seg" role="tablist" aria-label="Forward pieces">
+                    {(
+                      [
+                        { id: "reports" as const, name: "Reports", ready: !!r.outputs.reports },
+                        { id: "guidance" as const, name: "Guidance", ready: !!r.outputs.guidance },
+                        { id: "protocol" as const, name: "Living page", ready: !!r.outputs.protocol },
+                      ] as const
+                    ).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={forwardTab === t.id}
+                        onClick={() => setForwardTab(t.id)}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {forwardTab === "reports" && (
+                    <div className="grid gap-6">
+                      <StageRunner
+                        r={r}
+                        stage="reports"
+                        output={r.outputs.reports}
+                        label="Write the reports"
+                        onReading={onReading}
+                      />
+                      {!!r.outputs.reports && (
+                        <button type="button" className="btn btn--ghost w-fit" onClick={() => setForwardTab("guidance")}>
+                          Continue to guidance
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {forwardTab === "guidance" && (
+                    <div className="grid gap-6">
+                      <StageRunner
+                        r={r}
+                        stage="guidance"
+                        output={r.outputs.guidance}
+                        label="Write the guidance"
+                        onReading={onReading}
+                      />
+                      {!!r.outputs.guidance && (
+                        <button type="button" className="btn btn--ghost w-fit" onClick={() => setForwardTab("protocol")}>
+                          Continue to living page
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {forwardTab === "protocol" && (
+                    <div className="grid gap-6">
+                      <StageRunner
+                        r={r}
+                        stage="protocol"
+                        output={r.outputs.protocol ? "ready" : undefined}
+                        showOutput={false}
+                        label="Build the living page"
+                        onReading={onReading}
+                      />
+                      {r.outputs.protocol && !r.generating && (
+                        <div className="grid gap-4">
+                          <div className="actions">
+                            <a className="btn btn--primary" href={`/api/readings/${r.id}/protocol?download=1`}>
+                              Download HTML
+                            </a>
+                            <a className="btn btn--ghost" href={`/api/readings/${r.id}/protocol`} target="_blank" rel="noreferrer">
+                              Open in a new tab
+                            </a>
+                          </div>
+                          <iframe
+                            key={r.updatedAt}
+                            title="Living page preview"
+                            src={`/api/readings/${r.id}/protocol`}
+                            className="w-full h-[55vh] sm:h-[70vh] rounded-[4px] bg-[var(--s1)] max-w-full"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="stage-foot">
+                <button type="button" className="btn btn--ghost" onClick={() => go("past")}>
+                  ← Past-check
+                </button>
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
 }
 
-function SectionIntro({ section, paidLocked }: { section: SectionDef; paidLocked: boolean }) {
+function PaidGate({ onToday }: { onToday: () => void }) {
   return (
-    <header className="max-w-[40rem] enter">
-      <p className="eyebrow text-[var(--gold)]">
-        {PHASE_LABEL[section.phase]}
-        {paidLocked ? " · locked" : ""} · Step {section.n} of {SECTIONS.length}
+    <div className="locked enter">
+      <h3>The full protocol sits behind this step</h3>
+      <p>
+        Your atlas — life areas and one practice each — stays open. The past-check and the forward reports are part of
+        the full protocol: statements about years you already lived, scored before any forecast. Upgrade to unlock them.
       </p>
-      <h2 className="serif text-[clamp(1.55rem,4.5vw,2.4rem)] leading-tight mt-1">{section.title}</h2>
-      <p className="mt-3 text-[14.5px] sm:text-[15px] leading-relaxed">{section.purpose}</p>
-      <p className="mt-2 text-[13.5px] muted leading-relaxed">
-        <span className="text-[var(--ink)] font-medium">Your part: </span>
-        {section.youDo}
-      </p>
-    </header>
-  );
-}
-
-function StepNav({
-  back,
-  next,
-  nextHint,
-  onGo,
-}: {
-  back?: { id: Section; label: string };
-  next?: { id: Section; label: string };
-  nextHint?: string;
-  onGo: (id: Section) => void;
-}) {
-  if (!back && !next && !nextHint) return null;
-  return (
-    <nav
-      className="border-t hair pt-6 sm:pt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
-      aria-label="Step navigation"
-    >
-      {back ? (
-        <button type="button" className="btn btn-ghost w-fit" onClick={() => onGo(back.id)}>
-          ← {back.label}
-        </button>
-      ) : (
-        <span />
-      )}
-      <div className="flex flex-col gap-2 sm:items-end">
-        {nextHint && <p className="text-[12.5px] muted max-w-[22rem] sm:text-right">{nextHint}</p>}
-        {next && (
-          <button type="button" className="btn btn-primary w-fit" onClick={() => onGo(next.id)}>
-            {next.label} →
-          </button>
-        )}
-      </div>
-    </nav>
-  );
-}
-
-function PaidGate({ title, onModules }: { title: string; onModules: () => void }) {
-  return (
-    <div className="grid gap-4 enter max-w-[36rem] panel-soft px-4 sm:px-5 py-5">
-      <p className="text-[14.5px] leading-relaxed">
-        <strong className="font-medium">{title}</strong> is part of the full protocol. It opens after the free chart
-        atlas — starting with a blind past-check you score, then reports, guidance, and a living protocol page.
-      </p>
-      <p className="text-[13.5px] muted leading-relaxed">
-        Your atlas stays available either way. Upgrade (or flip plan in QA) to run this step.
-      </p>
-      <div className="btn-row">
-        <button type="button" className="btn btn-primary" onClick={onModules}>
-          Back to chart atlas
-        </button>
-      </div>
+      <button type="button" className="btn btn--primary" onClick={onToday}>
+        Back to the atlas
+      </button>
     </div>
   );
 }

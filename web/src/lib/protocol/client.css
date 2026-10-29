@@ -1,18 +1,18 @@
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body),Georgia,serif;font-size:clamp(1rem,.96rem + .2vw,1.0625rem);line-height:1.6;font-feature-settings:"onum","kern"}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body),"Jost","Century Gothic","Avenir Next",sans-serif;font-size:clamp(1rem,.96rem + .2vw,1.0625rem);line-height:1.6;font-weight:380;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
 .wrap{max-width:72rem;margin:0 auto;padding:clamp(1.25rem,3vw,3rem) clamp(1rem,4vw,3rem) 4rem}
-h1,h2,h3,.display{font-family:var(--display),Georgia,serif;font-weight:500;line-height:1.1;letter-spacing:-.01em;margin:0}
+h1,h2,h3,.display{font-family:var(--display),"Jost",sans-serif;font-weight:450;line-height:1.1;letter-spacing:-.02em;margin:0}
 h2{font-size:clamp(1.5rem,1.2rem + 1.2vw,2.25rem);margin-bottom:1.25rem}
 h3{font-size:1.15rem;margin:0 0 .5rem}
 h3.display,.seasons h3,.remedies h3{font-size:1.4rem}
 p{margin:0 0 .9em}
 .muted{color:var(--muted)}
-.eyebrow{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-section{padding-block:clamp(2.5rem,5vw,4.5rem);border-top:1px solid var(--line)}
-section:first-of-type{border-top:0}
+.eyebrow{font-size:.8125rem;letter-spacing:0;text-transform:none;color:var(--muted);font-weight:500}
+section{padding-block:clamp(2.5rem,5vw,4.5rem)}
+section+section{margin-top:.5rem}
 
 /* masthead */
 .mast{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem 2rem;align-items:end;padding-bottom:1.5rem}

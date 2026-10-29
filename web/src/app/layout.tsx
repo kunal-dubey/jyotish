@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans, Newsreader } from "next/font/google";
+import { Jost } from "next/font/google";
 import "./globals.css";
 
-const newsreader = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", style: ["normal", "italic"] });
-const plex = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-plex", weight: ["400", "500", "600"] });
+const jost = Jost({
+  subsets: ["latin"],
+  variable: "--font-jost",
+  weight: ["300", "400", "500", "600"],
+});
 
 export const metadata: Metadata = {
   title: "Jyotish Protocol",
@@ -14,11 +17,16 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F2F2F7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${newsreader.variable} ${plex.variable}`}>
+    <html lang="en" className={jost.variable}>
       <body className="antialiased">{children}</body>
     </html>
   );

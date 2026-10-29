@@ -69,16 +69,38 @@ export function isFreeOpenRouterModel(model: string): boolean {
 }
 
 /**
+ * Claude 5.5 (and peers) always run adaptive thinking. OpenRouter injects it even
+ * when the request omits `thinking` — default effort is high, so reasoning can
+ * consume the entire max_tokens budget and return empty text (past-check bug).
+ * These models must go through the beta path with an explicit effort.
+ */
+export function modelRequiresAdaptiveThinking(model: string): boolean {
+  const id = model.replace(/^anthropic\//, "");
+  return /claude-(sonnet|opus|haiku)-5(\.|$)/i.test(id) || /claude-(sonnet|opus)-5-/i.test(id);
+}
+
+/**
  * Adaptive thinking / effort / Anthropic zod structured outputs.
- * On OpenRouter we default these OFF even for anthropic/* — thinking often blows
- * the Vercel 300s budget. Opt in with OPENROUTER_THINKING=1.
+ * On OpenRouter we default these OFF for older anthropic/* models — thinking often
+ * blows the Vercel 300s budget. Opt in with OPENROUTER_THINKING=1.
+ * Claude 5.5+ always needs the beta path (thinking cannot be disabled).
  * Direct Anthropic keeps thinking enabled.
  */
 export function modelSupportsAnthropicExtras(model: string): boolean {
   if (isFreeOpenRouterModel(model)) return false;
+  if (modelRequiresAdaptiveThinking(model)) return true;
   if (!model.startsWith("anthropic/") && usingOpenRouter()) return false;
   if (usingOpenRouter()) return process.env.OPENROUTER_THINKING?.trim() === "1";
   return model.startsWith("claude") || !usingOpenRouter();
+}
+
+/** Per-stage effort. Past must stay low so claims are not starved by reasoning. */
+export function llmEffortForStage(
+  stage: StageName,
+  preferred: "low" | "medium" | "high",
+): "low" | "medium" | "high" {
+  if (stage === "past") return "low";
+  return preferred;
 }
 
 /**

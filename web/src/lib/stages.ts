@@ -7,9 +7,11 @@ import {
   hasLlmCredentials,
   isFreeOpenRouterModel,
   llmAuthErrorHint,
+  llmEffortForStage,
   llmModelForStage,
   llmOpenRouterFallbacks,
   llmRateLimitHint,
+  modelRequiresAdaptiveThinking,
   modelSupportsAnthropicExtras,
   usingOpenRouter,
 } from "./llm";
@@ -51,20 +53,19 @@ const STAGE_OUTPUT: Record<StageName, keyof Reading["outputs"]> = {
 
 /**
  * Per-stage generation knobs.
- * Adaptive thinking (Anthropic only) counts against max_tokens — keep headroom so
- * Report 2 claims are not truncated. Free/open models skip Anthropic thinking but
- * may still emit provider reasoning. Keep freeMaxTokens modest so a slow free
- * provider can finish under Vercel's 300s wall; cheap paid defaults use maxTokens.
+ * Claude 5.5 always thinks; reasoning tokens count against max_tokens. Effort must
+ * leave headroom for visible text (especially past-check claims). Free/open models
+ * skip Anthropic thinking; keep freeMaxTokens modest for Vercel's 300s wall.
  */
 const STAGE_LLM: Record<
   StageName,
   { effort: "low" | "medium" | "high"; maxTokens: number; freeMaxTokens: number }
 > = {
-  // Claims-first past; reports need room for four sections under Sonnet without thinking.
-  past: { effort: "medium", maxTokens: 32000, freeMaxTokens: 12000 },
-  reports: { effort: "medium", maxTokens: 36000, freeMaxTokens: 16000 },
-  guidance: { effort: "high", maxTokens: 28000, freeMaxTokens: 12000 },
-  protocol: { effort: "high", maxTokens: 32000, freeMaxTokens: 16000 },
+  // Past: low effort + larger cap so claims survive mandatory Sonnet 5.5 thinking.
+  past: { effort: "low", maxTokens: 64000, freeMaxTokens: 12000 },
+  reports: { effort: "medium", maxTokens: 64000, freeMaxTokens: 16000 },
+  guidance: { effort: "medium", maxTokens: 48000, freeMaxTokens: 12000 },
+  protocol: { effort: "medium", maxTokens: 64000, freeMaxTokens: 16000 },
 };
 
 /** True when truncated reports still have enough structure to show in the UI. */
@@ -235,16 +236,19 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
     });
 
     const content = stageContent(r, stage, { includeProtocolJsonSchema: isProtocol && !anthropicExtras });
+    const effort = llmEffortForStage(stage, knobs.effort);
+    const mandatoryThinking = modelRequiresAdaptiveThinking(model);
 
-    // Free / non-Anthropic OpenRouter models: no adaptive thinking (that was burning the 300s budget).
+    // Claude 5.5 always thinks (OpenRouter injects adaptive/high if we omit it).
+    // Older models: thinking only when OPENROUTER_THINKING=1 or direct Anthropic.
     const stream = anthropicExtras
       ? client.beta.messages.stream({
           model,
           max_tokens: maxTokens,
           ...routingExtras,
-          thinking: { type: "adaptive", display: "summarized" },
+          thinking: { type: "adaptive", display: "omitted" },
           output_config: {
-            effort: knobs.effort,
+            effort,
             ...(isProtocol ? { format: zodOutputFormat(ProtocolSchema) } : {}),
           },
           system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
@@ -258,6 +262,10 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
           messages: [{ role: "user", content: plainTextBlocks(content) }],
         });
 
+    console.info(
+      `[stage] stream reading=${r.id} stage=${stage} model=${model} maxTokens=${maxTokens} effort=${effort} thinking=${anthropicExtras ? "adaptive" : "off"}${mandatoryThinking && !anthropicExtras ? " (5.5 will still think upstream)" : ""}`,
+    );
+
     for await (const ev of stream) {
       if (ev.type !== "content_block_delta") continue;
       const d = ev.delta;
@@ -268,9 +276,8 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
 
     if (msg.stop_reason === "refusal") throw new Error("The model declined this request.");
 
-    const text = Array.from(msg.content as Iterable<{ type: string; text?: string }>)
-      .flatMap((b) => (b.type === "text" && b.text ? [b.text] : []))
-      .join("");
+    const contentBlocks = Array.from(msg.content as Iterable<{ type: string; text?: string; thinking?: string }>);
+    const text = contentBlocks.flatMap((b) => (b.type === "text" && b.text ? [b.text] : [])).join("");
     const truncated = msg.stop_reason === "max_tokens";
     const usageRaw = msg.usage as {
       input_tokens: number;
@@ -283,20 +290,26 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
       output: usageRaw.output_tokens,
       cacheRead: usageRaw.cache_read_input_tokens ?? 0,
     };
+    const blockSummary = contentBlocks.reduce<Record<string, number>>((acc, b) => {
+      acc[b.type] = (acc[b.type] ?? 0) + 1;
+      return acc;
+    }, {});
 
     if (stage === "past") {
       const claims = parseClaims(text);
       console.info(
-        `[stage] past done reading=${r.id} stop=${msg.stop_reason} outTokens=${usage.output} textLen=${text.length} claims=${claims.length}`,
+        `[stage] past done reading=${r.id} stop=${msg.stop_reason} outTokens=${usage.output} textLen=${text.length} claims=${claims.length} blocks=${JSON.stringify(blockSummary)} effort=${effort}`,
       );
       if (claims.length === 0) {
-        throw new Error(
-          truncated
-            ? "The past-check hit the length limit before any scorable claims arrived. Regenerate."
-            : text.trim()
-              ? "Report 2 came back without numbered claims to score (C1, C2, …). Regenerate."
-              : "The model returned no text for the past-check (likely truncated while thinking). Regenerate.",
-        );
+        const reason =
+          truncated && !text.trim()
+            ? "The past-check used its whole token budget on model reasoning and returned no claims. Regenerate — past now runs at low effort with a larger cap."
+            : truncated
+              ? "The past-check hit the length limit before any scorable claims arrived. Regenerate."
+              : text.trim()
+                ? "Report 2 came back without numbered claims to score (C1, C2, …). Regenerate."
+                : "The model returned no text for the past-check (likely truncated while thinking). Regenerate.";
+        throw new Error(reason);
       }
       // Usable claims: keep them even if the prose was cut mid-draft.
       r.outputs = { past: text, claims };

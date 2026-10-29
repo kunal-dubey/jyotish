@@ -29,18 +29,18 @@ function contrast(a: string, b: string) {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 function safePalette(p: ProtocolContent["design"]["light"], dark: boolean) {
-  const fallbackInk = dark ? "#ece8df" : "#1d1b18";
-  const ground = lum(p.ground) == null ? (dark ? "#16151a" : "#f4f2ee") : p.ground;
+  const fallbackInk = dark ? "#eceef3" : "#16120a";
+  const ground = lum(p.ground) == null ? (dark ? "#0b0d12" : "#f4f2ee") : p.ground;
   const ink = contrast(p.ink, ground) >= 7 ? p.ink : fallbackInk;
   const muted = contrast(p.muted, ground) >= 4.5 ? p.muted : `color-mix(in oklab, ${ink} 72%, ${ground})`;
   const pick = (c: string, alt: string) => (lum(c) == null ? alt : c);
   return {
     ground, ink, muted,
-    surface: pick(p.surface, `color-mix(in oklab, ${ink} 6%, ${ground})`),
-    accent: pick(p.accent, ink),
-    "accent-soft": pick(p.accentSoft, `color-mix(in oklab, ${ink} 12%, ${ground})`),
-    line: pick(p.line, `color-mix(in oklab, ${ink} 18%, ${ground})`),
-    warn: pick(p.warn, ink),
+    surface: pick(p.surface, dark ? "#11141b" : `color-mix(in oklab, ${ink} 6%, ${ground})`),
+    accent: pick(p.accent, dark ? "#d9b77e" : ink),
+    "accent-soft": pick(p.accentSoft, dark ? "#2a2418" : `color-mix(in oklab, ${ink} 12%, ${ground})`),
+    line: pick(p.line, dark ? "#323949" : `color-mix(in oklab, ${ink} 18%, ${ground})`),
+    warn: pick(p.warn, dark ? "#ebc690" : ink),
   };
 }
 const vars = (o: Record<string, string>) => Object.entries(o).map(([k, v]) => `--${k}:${v};`).join("");

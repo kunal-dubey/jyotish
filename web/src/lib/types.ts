@@ -39,7 +39,15 @@ export type Chart = {
     offset_source: string;
     notes: string[];
   };
-  settings: { ayanamsa_value: number; ephemeris: string[] };
+  settings: {
+    ayanamsa_value: number;
+    ephemeris: string[];
+    zodiac?: string;
+    ayanamsa?: string;
+    houses?: string;
+    nodes?: string;
+  };
+  combustion?: { planet: string; distance: number; orb: number }[];
   ascendant: {
     sign: string;
     sign_index: number;

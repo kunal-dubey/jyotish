@@ -1,25 +1,40 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { chartSvg, regionalStyle } from "@/lib/chartSvg";
 import type { Intake } from "@/lib/types";
 import { api, type LoadedReading } from "./api";
 import IntakeForm from "./IntakeForm";
+import PractitionerDialog from "./PractitionerDialog";
 
 function mins(n: number | null) {
   return n == null ? "more than the search window" : `${n} min`;
 }
 
-export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReading: (r: LoadedReading) => void }) {
-  const [editing, setEditing] = useState(false);
+export default function ChartPanel({
+  r,
+  onReading,
+  startEditing = false,
+}: {
+  r: LoadedReading;
+  onReading: (r: LoadedReading) => void;
+  startEditing?: boolean;
+}) {
+  const [editing, setEditing] = useState(startEditing);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
+  const [practitionerOpen, setPractitionerOpen] = useState(false);
+  useEffect(() => {
+    if (startEditing) setEditing(true);
+  }, [startEditing]);
   const c = r.chart;
-  const svg = useMemo(() => chartSvg(c, regionalStyle(r.intake.place.label)), [c, r.intake.place.label]);
+  const style = regionalStyle(r.intake.place.label);
+  const svg = useMemo(() => chartSvg(c, style), [c, style]);
   const lg = c.sensitivity.lagna,
     nl = c.sensitivity.navamsa_lagna,
     mn = c.sensitivity.moon_nakshatra;
   const hasDownstream = r.status !== "chart" && r.status !== "confirmed";
+  const name = r.intake.callName || r.intake.name;
 
   if (editing) {
     return (
@@ -52,19 +67,22 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
       <div className="grid md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-6 md:gap-12 items-start">
         <figure className="panel max-w-full overflow-x-auto">
           <div className="min-w-0" dangerouslySetInnerHTML={{ __html: svg }} />
-          <figcaption className="text-[12.5px] muted mt-2">
-            {regionalStyle(r.intake.place.label) === "south" ? "South" : "North"} Indian style. ʳ marks retrograde.
+          <figcaption className="text-[13px] muted mt-2">
+            {style === "south" ? "South" : "North"} Indian style. Retrograde marked.
           </figcaption>
         </figure>
 
         <div className="grid gap-5 min-w-0">
           <div>
-            <p className="eyebrow">The chart</p>
-            <h2 className="serif text-[clamp(1.55rem,4.5vw,2.35rem)] leading-tight mt-1">
-              {c.ascendant.sign} rising, {c.ascendant.deg}
+            <h2 className="stage-title" style={{ fontSize: "clamp(28px, 4vw, 40px)" }}>
+              {c.ascendant.sign} rising
             </h2>
-            <p className="muted mt-1 text-[13.5px] sm:text-[15px]">
-              {c.ascendant.nakshatra} pada {c.ascendant.pada} · lord {c.ascendant.lord} · navamsa {c.ascendant.navamsa}
+            <p className="muted mt-2 text-[15px]">
+              {c.ascendant.deg} · {c.ascendant.nakshatra} pada {c.ascendant.pada}
+            </p>
+            <p className="muted mt-1 text-[13px]">
+              Ruled by {c.ascendant.lord}
+              {c.yogakaraka.length ? ` · yogakaraka ${c.yogakaraka.join(", ")}` : ""}
             </p>
           </div>
 
@@ -73,11 +91,11 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
             <dd>
               {r.intake.date} {r.intake.time} · {r.intake.place.label}
             </dd>
-            <dt>Offset</dt>
+            <dt>Time offset</dt>
             <dd>
               {c.time.utc_offset_str} <span className="muted">from {c.time.offset_source}</span>
             </dd>
-            <dt>Lagna window</dt>
+            <dt>Rising window</dt>
             <dd>
               {mins(lg.minutes_earlier_survives)} earlier · {mins(lg.minutes_later_survives)} later
             </dd>
@@ -85,7 +103,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
 
           {c.sensitivity.time_critical && (
             <p className="note note-warn">
-              <strong>Time-critical.</strong> The rising sign changes within ten minutes of the recorded time.
+              <strong>Time-sensitive.</strong> The rising sign changes within ten minutes of the recorded time.
             </p>
           )}
           {c.time.notes.slice(0, details ? undefined : 1).map((n, k) => (
@@ -94,14 +112,19 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
             </p>
           ))}
 
-          <button type="button" className="see-more justify-self-start" onClick={() => setDetails((d) => !d)}>
-            {details ? "Hide technical detail" : "See planets, dashas & sensitivity"}
-          </button>
+          <div className="grid gap-2 justify-items-start">
+            <button type="button" className="see-more" onClick={() => setDetails((d) => !d)}>
+              {details ? "Hide chart detail" : "Show chart detail (planets, periods, sensitivity)"}
+            </button>
+            <button type="button" className="see-more" onClick={() => setPractitionerOpen(true)}>
+              Open practitioner table
+            </button>
+          </div>
         </div>
       </div>
 
       {details && (
-        <div className="grid gap-8 enter">
+        <div className="grid gap-8 enter" data-ui>
           <dl className="meta-grid panel">
             <dt>Universal time</dt>
             <dd>{c.time.utc.replace("T", " ").replace("Z", " UT")}</dd>
@@ -111,7 +134,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
             </dd>
             <dt>Navamsa lagna</dt>
             <dd>
-              {mins(nl.minutes_earlier_survives)} / {mins(nl.minutes_later_survives)}
+              {c.ascendant.navamsa} · {mins(nl.minutes_earlier_survives)} / {mins(nl.minutes_later_survives)}
             </dd>
             <dt>Moon nakshatra</dt>
             <dd>
@@ -128,7 +151,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
 
           <div className="grid lg:grid-cols-2 gap-8">
             <div className="overflow-x-auto">
-              <h3 className="eyebrow mb-2">Planets</h3>
+              <h3 className="text-[14px] font-medium mb-2">Planets</h3>
               <table className="tbl">
                 <thead>
                   <tr>
@@ -156,7 +179,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
             </div>
             <div className="grid gap-6">
               <div className="overflow-x-auto">
-                <h3 className="eyebrow mb-2">If the time is off</h3>
+                <h3 className="text-[14px] font-medium mb-2">If the time is off</h3>
                 <table className="tbl">
                   <thead>
                     <tr>
@@ -168,9 +191,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
                   <tbody>
                     {c.sensitivity.table.map((t) => (
                       <tr key={t.offset_min} className={t.offset_min === 0 ? "now" : ""}>
-                        <td>
-                          {t.offset_min > 0 ? `+${t.offset_min}` : t.offset_min} min
-                        </td>
+                        <td>{t.offset_min > 0 ? `+${t.offset_min}` : t.offset_min} min</td>
                         <td>
                           {t.sign} {t.deg}
                         </td>
@@ -181,7 +202,7 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
                 </table>
               </div>
               <div className="overflow-x-auto">
-                <h3 className="eyebrow mb-2">Mahadashas</h3>
+                <h3 className="text-[14px] font-medium mb-2">Major periods</h3>
                 <table className="tbl">
                   <tbody>
                     {c.vimshottari.mahadashas.slice(0, 6).map((m) => (
@@ -203,35 +224,42 @@ export default function ChartPanel({ r, onReading }: { r: LoadedReading; onReadi
         </div>
       )}
 
-      <div className="border-t hair pt-6 sm:pt-8 grid gap-4 sm:flex sm:flex-wrap sm:items-center">
+      <div className="pt-2 grid gap-4 sm:flex sm:flex-wrap sm:items-center">
         {r.status === "chart" ? (
           <>
             <div className="max-w-[34rem] min-w-0">
-              <p className="eyebrow text-[var(--gold)]">Hard stop 1 · Confirm</p>
-              <p className="mt-1 text-[14px] sm:text-[14.5px]">
-                A chart on a mistyped year is coherent and completely wrong. Check the moment and place before any model
+              <p className="text-[15px] leading-relaxed">
+                A chart on a mistyped year looks coherent and is completely wrong. Check the moment and place before any
                 writing begins.
               </p>
             </div>
             <div className="btn-row btn-row-stack sm:ml-auto sm:flex-row">
-              <button type="button" className="btn" onClick={() => setEditing(true)}>
-                Edit
+              <button type="button" className="btn btn--ghost" onClick={() => setEditing(true)}>
+                Correct Details
               </button>
-              <button type="button" className="btn btn-primary" onClick={confirmData} disabled={busy}>
-                Looks right — continue
+              <button type="button" className="btn btn--primary" onClick={confirmData} disabled={busy}>
+                Confirm Chart
               </button>
             </div>
           </>
         ) : (
           <>
-            <p className="muted text-[13.5px]">Confirmed {r.confirmedAt?.slice(0, 10)}.</p>
-            <button type="button" className="btn btn-quiet sm:ml-auto" onClick={() => setEditing(true)}>
-              Correct birth data
+            <p className="muted text-[14px]">Chart confirmed. The atlas is open.</p>
+            <button type="button" className="btn btn--ghost sm:ml-auto" onClick={() => setEditing(true)}>
+              Edit Details
             </button>
           </>
         )}
         {err && <p className="note note-bad w-full">{err}</p>}
       </div>
+
+      <PractitionerDialog
+        open={practitionerOpen}
+        chart={c}
+        name={name}
+        placeLabel={r.intake.place.label}
+        onClose={() => setPractitionerOpen(false)}
+      />
     </div>
   );
 }
