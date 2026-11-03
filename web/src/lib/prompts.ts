@@ -120,9 +120,9 @@ Include at least one claim you would expect to be wrong if the method is empty, 
 
 **Claim format, required.** Write every scorable claim as its own markdown list item in exactly this shape, numbered sequentially:
 
-- **C1** · *Saturn–Mercury, Aug 2006 to Apr 2009, age 11 to 14* · The claim, in one or two sentences.
+- **C1** · *age 11 to 14* · The claim, in one or two sentences.
 
-Put the period label between single asterisks after the number. Append \` [CONTROL]\` to the end of a claim you would expect to be wrong if the method is empty. Aim for fifteen to twenty-five claims. If a dasha has nothing specific enough to be wrong, say so in prose and do not invent a soft claim.
+Put the period label between single asterisks after the number. The label is age only (e.g. \`age 11 to 14\` or \`age 28\`). Do not put dasha planet names or calendar dates in the label — those stay in the foundation prose if needed. Append \` [CONTROL]\` to the end of a claim you would expect to be wrong if the method is empty. Aim for fifteen to twenty-five claims. If a dasha has nothing specific enough to be wrong, say so in prose and do not invent a soft claim.
 
 End Report 2 with one short paragraph asking the subject to score each claim right, wrong, or unclear before reading anything further. Do not write any forward-looking material.
 

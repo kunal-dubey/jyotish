@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import AdminUsage from "./AdminUsage";
 import AuthScreen from "./AuthScreen";
+import CosmicLoader from "./CosmicLoader";
 import Home from "./Home";
 import Landing from "./Landing";
 import NewReadingDialog from "./NewReadingDialog";
@@ -35,9 +36,19 @@ function BrandMark() {
 }
 
 function Shell() {
-  const [route, setRoute] = useState<Route | null>(null);
-  const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
+  const [route, setRoute] = useState<Route>({ name: "home" });
+  // null = signed out (or auth still resolving for public routes). undefined only while
+  // a protected route is waiting on /api/auth/me — never block the whole landing page.
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+
+  function openNewReading() {
+    setNewOpen(true);
+  }
+  function closeNewReading() {
+    setNewOpen(false);
+  }
 
   useEffect(() => {
     const on = () => setRoute(parse(window.location.hash));
@@ -47,17 +58,64 @@ function Shell() {
   }, []);
 
   useEffect(() => {
-    api.me().then(setUser, () => setUser(null));
+    let cancelled = false;
+    const ctrl = new AbortController();
+    // Generous timeout — abort must not fake a sign-out while Mongo is slow.
+    const timer = window.setTimeout(() => ctrl.abort(), 12_000);
+
+    async function restoreSession() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include", signal: ctrl.signal });
+        if (cancelled) return;
+        if (res.status === 401) {
+          setUser(null);
+          return;
+        }
+        if (!res.ok) {
+          // Transient server error — keep signed-out UI but don't treat as logout event.
+          setUser(null);
+          return;
+        }
+        setUser((await res.json()) as AuthUser);
+      } catch (err) {
+        if (cancelled) return;
+        // Abort / network: retry once without abort so a slow Mongo boot can still restore.
+        const aborted = err instanceof DOMException && err.name === "AbortError";
+        if (aborted) {
+          try {
+            const res = await fetch("/api/auth/me", { credentials: "include" });
+            if (cancelled) return;
+            if (res.ok) {
+              setUser((await res.json()) as AuthUser);
+              return;
+            }
+          } catch {
+            /* fall through */
+          }
+        }
+        setUser(null);
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    }
+
+    void restoreSession();
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
-    if (user === null && (route?.name === "reading" || route?.name === "admin-usage")) {
+    if (!authChecked) return;
+    if (!user && (route.name === "reading" || route.name === "admin-usage")) {
       window.location.hash = "#/auth";
     }
-    if (user && route?.name === "admin-usage" && user.plan !== "admin") {
+    if (user && route.name === "admin-usage" && user.plan !== "admin") {
       window.location.hash = "#/";
     }
-  }, [user, route]);
+  }, [authChecked, user, route]);
 
   async function logout() {
     await api.logout();
@@ -65,12 +123,10 @@ function Shell() {
     window.location.hash = "#/";
   }
 
-  if (!route || user === undefined) {
-    return (
-      <div className="sky min-h-dvh grid place-items-center">
-        <span className="pulse" aria-hidden />
-      </div>
-    );
+  // Brief chart-wheel boot while session resolves. Auth aborts at 3s so this
+  // can never stick; public begin/auth routes paint without waiting.
+  if (!authChecked && (route.name === "home" || route.name === "reading" || route.name === "admin-usage")) {
+    return <CosmicLoader size="lg" fullPage label="Loading" />;
   }
 
   const showAuth = !user && (route.name === "auth" || route.name === "reading" || route.name === "admin-usage");
@@ -92,16 +148,16 @@ function Shell() {
           <div className="topbar__spacer" />
 
           {user ? (
-            <>
+            <div className="topbar__actions">
               <span className="account">{user.email}</span>
               {user.plan === "admin" && (
-                <a href="#/admin/usage" className="btn btn--ghost btn--sm">
+                <a href="#/admin/usage" className="btn btn--ghost btn--sm topbar__usage">
                   Usage
                 </a>
               )}
               {process.env.NODE_ENV !== "production" ? (
                 <select
-                  className="text-[12px] bg-[var(--s2)] muted rounded-[10px] px-2 py-1 max-w-[6.5rem] min-h-10"
+                  className="topbar__plan"
                   aria-label="QA plan"
                   value={user.plan ?? "free"}
                   onChange={async (e) => {
@@ -119,24 +175,25 @@ function Shell() {
                   <option value="admin">admin</option>
                 </select>
               ) : null}
-              <button type="button" className="btn btn--tinted btn--sm" onClick={() => setNewOpen(true)}>
-                + New Reading
+              <button type="button" className="btn btn--tinted btn--sm" onClick={openNewReading}>
+                <span className="topbar__new-full">+ New Reading</span>
+                <span className="topbar__new-short">+ New</span>
               </button>
               <button type="button" className="btn btn--quiet btn--sm" onClick={logout}>
                 Sign out
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <button type="button" className="btn btn--tinted btn--sm" onClick={() => setNewOpen(true)}>
+            <div className="topbar__actions">
+              <button type="button" className="btn btn--tinted btn--sm" onClick={openNewReading}>
                 Begin
               </button>
               {route.name !== "auth" && (
-                <a href="#/auth" className="btn btn--ghost btn--sm">
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => (window.location.hash = "#/auth")}>
                   Sign in
-                </a>
+                </button>
               )}
-            </>
+            </div>
           )}
         </div>
       </header>
@@ -144,7 +201,7 @@ function Shell() {
       {showLanding && (
         <Landing
           onSignIn={() => (window.location.hash = "#/auth")}
-          onBegin={() => setNewOpen(true)}
+          onBegin={openNewReading}
         />
       )}
       {showAuth && (
@@ -162,7 +219,7 @@ function Shell() {
           onCreated={(r) => (window.location.hash = `#/r/${r.id}`)}
         />
       )}
-      {showHome && <Home onNewReading={() => setNewOpen(true)} />}
+      {showHome && <Home onNewReading={openNewReading} />}
       {showAdminUsage && <AdminUsage />}
       {showReading && route.name === "reading" && <ReadingView key={route.id} id={route.id} />}
 
@@ -170,16 +227,18 @@ function Shell() {
         <p>Prototype. Sample chart and interpretation copy, not medical, financial or legal advice.</p>
       </footer>
 
-      <NewReadingDialog
-        open={newOpen}
-        user={user ?? null}
-        onAuthed={setUser}
-        onCreated={(r) => {
-          setNewOpen(false);
-          window.location.hash = `#/r/${r.id}`;
-        }}
-        onClose={() => setNewOpen(false)}
-      />
+      {newOpen ? (
+        <NewReadingDialog
+          open
+          user={user ?? null}
+          onAuthed={setUser}
+          onCreated={(r) => {
+            closeNewReading();
+            window.location.hash = `#/r/${r.id}`;
+          }}
+          onClose={closeNewReading}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,9 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { StageName, Status } from "@/lib/types";
 import { STATUS_ORDER } from "@/lib/types";
 import { api, runStage, type LoadedReading } from "./api";
+import CosmicLoader from "./CosmicLoader";
 import ReportDigest from "./ReportDigest";
+
+export type StageRunnerHandle = { run: () => void };
 
 const SHAPE: Record<StageName, { resetTo: Status; produces: Status }> = {
   past: { resetTo: "confirmed", produces: "past_check" },
@@ -80,21 +83,23 @@ function quietProgressPct(thinkingLen: number, textLen: number, elapsedSec: numb
   return Math.min(94, Math.max(timePct, milestone));
 }
 
-export default function StageRunner({
-  r,
-  stage,
-  output,
-  showOutput = true,
-  label,
-  onReading,
-}: {
-  r: LoadedReading;
-  stage: StageName;
-  output?: string;
-  showOutput?: boolean;
-  label: string;
-  onReading: (r: LoadedReading) => void;
-}) {
+const StageRunner = forwardRef<
+  StageRunnerHandle,
+  {
+    r: LoadedReading;
+    stage: StageName;
+    output?: string;
+    showOutput?: boolean;
+    /** When false, hide the idle Generate/Regenerate button (caller can trigger via ref). */
+    showIdleButton?: boolean;
+    label: string;
+    onReading: (r: LoadedReading) => void;
+    onBusyChange?: (busy: boolean) => void;
+  }
+>(function StageRunner(
+  { r, stage, output, showOutput = true, showIdleButton = true, label, onReading, onBusyChange },
+  ref,
+) {
   const [running, setRunning] = useState(false);
   const [thinking, setThinking] = useState("");
   const [text, setText] = useState("");
@@ -113,6 +118,10 @@ export default function StageRunner({
   const has = !!output;
   const downstream = STATUS_ORDER.indexOf(r.status) > STATUS_ORDER.indexOf(SHAPE[stage].produces);
   const quiet = QUIET_STREAM[stage];
+
+  useEffect(() => {
+    onBusyChange?.(generatingHere);
+  }, [generatingHere, onBusyChange]);
 
   useEffect(() => {
     if (!generatingHere || !quiet) return;
@@ -189,6 +198,7 @@ export default function StageRunner({
     maxBar.current = 8;
     setBarPct(8);
     startedAt.current = Date.now();
+    recoveredRef.current = false;
     setRunning(true);
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -211,34 +221,44 @@ export default function StageRunner({
             recoveredRef.current = true;
             maxBar.current = 100;
             setBarPct(100);
+            setRunning(false);
+            startedAt.current = 0;
             onReading(next);
           },
           onError: (m) => {
             if (recoveredRef.current || ac.signal.aborted) return;
             setErr(m);
+            setRunning(false);
+            startedAt.current = 0;
           },
         },
         ac.signal,
       );
     } catch (e) {
       if (!ac.signal.aborted && !recoveredRef.current) setErr((e as Error).message);
+    } finally {
+      setRunning(false);
+      startedAt.current = 0;
     }
-    if (!recoveredRef.current) setRunning(false);
-    startedAt.current = 0;
   }
+
+  useImperativeHandle(ref, () => ({ run: go }));
 
   const stepIdx = quiet
     ? quietStepIndex(pending.current.thinking.length || thinking.length, text.length, elapsedSec)
     : 0;
   const steps = quiet?.steps ?? [];
+  const showDigest = !generatingHere && has && showOutput && stage !== "protocol";
+  const showIdle = !generatingHere && showIdleButton;
+  const silent = !showIdle && !generatingHere && !showDigest && !err;
 
   return (
-    <div className="grid gap-5 sm:gap-6 min-w-0">
-      {!generatingHere && (
+    <div className={`grid gap-5 sm:gap-6 min-w-0${silent ? " stage-runner--silent" : ""}`} hidden={silent || undefined}>
+      {showIdle && (
         <div className="btn-row">
           <button
             type="button"
-            className={`${has ? "btn" : "btn btn-primary"} w-full sm:w-auto`}
+            className={`${has ? "btn" : "btn btn--primary"} w-full sm:w-auto`}
             onClick={go}
             disabled={busyElsewhere}
           >
@@ -251,41 +271,47 @@ export default function StageRunner({
       {err && <p className="note note-bad">{err}</p>}
 
       {generatingHere && quiet && (
-        <div className="stage-wait panel-soft enter" role="status" aria-live="polite" aria-busy="true">
-          <div className="flex items-center gap-3">
+        <div className="stage-wait enter" role="status" aria-live="polite" aria-busy="true">
+          <header className="stage-wait__head">
             <span className="stage-wait-ring" aria-hidden />
-            <div className="min-w-0">
-              <p className="serif text-[clamp(1.25rem,3.5vw,1.55rem)] leading-snug">{quiet.title}</p>
-            </div>
-          </div>
-          <p className="muted text-[14px] mt-3 leading-relaxed max-w-[32rem]">
-            This usually takes a few minutes. The long draft stays out of the way; you will get a short, sectioned
-            reading when it is ready.
-          </p>
-          <ol className="stage-wait-steps mt-6">
+            <h3 className="stage-wait__title">{quiet.title}</h3>
+          </header>
+          <p className="stage-wait__lede">Usually a few minutes. Safe to leave this tab open.</p>
+          <ol className="stage-wait-steps">
             {steps.map((labelText, i) => {
               const state = i < stepIdx ? "done" : i === stepIdx ? "active" : "pending";
               return (
                 <li key={labelText} data-state={state}>
                   <span className="stage-wait-mark" aria-hidden>
-                    {state === "done" ? "·" : ""}
+                    {state === "done" ? (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path
+                          d="M2.5 6.2 5 8.7 9.5 3.5"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : state === "active" ? (
+                      <span className="stage-wait-mark__dot" />
+                    ) : null}
                   </span>
-                  <span>{labelText}</span>
+                  <span className="stage-wait-step__label">{labelText}</span>
                 </li>
               );
             })}
           </ol>
-          <div className="stage-wait-bar mt-5" aria-hidden>
+          <div className="stage-wait-bar" aria-hidden>
             <div className="stage-wait-bar-fill" style={{ width: `${barPct}%` }} />
           </div>
-          <p className="muted text-[12.5px] mt-3">Still working — safe to leave this tab open.</p>
         </div>
       )}
 
       {generatingHere && !quiet && (
         <div className="grid gap-3 panel-soft">
           <div className="flex items-center gap-2 text-[13px] muted">
-            <span className="pulse" aria-hidden /> {text ? "Writing" : "Reading the chart"}
+            <CosmicLoader size="sm" /> {text ? "Writing" : "Reading the chart"}
           </div>
           {stage === "protocol" && text && (
             <p className="muted text-[13px]">Composing the protocol ({Math.round(text.length / 100) * 100}+ characters).</p>
@@ -293,7 +319,9 @@ export default function StageRunner({
         </div>
       )}
 
-      {!generatingHere && has && showOutput && stage !== "protocol" && <ReportDigest markdown={output!} />}
+      {showDigest && <ReportDigest markdown={output!} />}
     </div>
   );
-}
+});
+
+export default StageRunner;

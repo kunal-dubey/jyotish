@@ -1,10 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CHART_TOPICS, topicGroups, type ChartTopic } from "@/lib/modules";
 import { buildRightNow } from "@/lib/rightNow";
 import type { LoadedReading, ReadingModule } from "./api";
 
 type AtlasView = "now" | "explore";
+type DepthPanel = "factors" | "period" | null;
+type TopicPanel = "counsel" | "map" | "classical" | "forYou" | null;
 
 export default function ModulesPanel({
   r,
@@ -24,251 +26,439 @@ export default function ModulesPanel({
     [r.chart, r.intake, r.outputs?.freeCounsel],
   );
 
-  const included = useMemo(
-    () => CHART_TOPICS.filter((t) => t.access === "free"),
-    [],
-  );
+  const included = useMemo(() => CHART_TOPICS.filter((t) => t.access === "free"), []);
   const groups = useMemo(() => topicGroups(included), [included]);
+  const areas = rightNow.areas;
 
   const [view, setView] = useState<AtlasView>("now");
+  const [areaId, setAreaId] = useState(areas[0]?.id ?? "");
+  const [depth, setDepth] = useState<DepthPanel>(null);
+  const [showIndex, setShowIndex] = useState(false);
+  const [showLeads, setShowLeads] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showThemes, setShowThemes] = useState(false);
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "foundations");
   const group = groups.find((g) => g.id === groupId) ?? groups[0];
+  const groupTopics = group?.topics ?? [];
   const [topicId, setTopicId] = useState<string | null>(null);
+  const [topicPanel, setTopicPanel] = useState<TopicPanel>(null);
   const topic = topicId
-    ? included.find((t) => t.id === topicId) ?? group?.topics.find((t) => t.id === topicId)
+    ? (included.find((t) => t.id === topicId) ?? groupTopics.find((t) => t.id === topicId))
     : undefined;
+  const topicIndex = Math.max(0, groupTopics.findIndex((t) => t.id === topicId));
+
+  const areaIndex = Math.max(0, areas.findIndex((a) => a.id === areaId));
+  const openArea = areas[areaIndex] ?? areas[0];
+  const indexRef = useRef<HTMLElement>(null);
+  const themeRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!areas.length) return;
+    if (!areas.some((a) => a.id === areaId)) setAreaId(areas[0].id);
+  }, [areas, areaId]);
+
+  useEffect(() => {
+    setDepth(null);
+    setShowLeads(false);
+    setShowMore(false);
+  }, [areaId]);
+
+  useEffect(() => {
+    if (!showIndex || !indexRef.current) return;
+    const current = indexRef.current.querySelector<HTMLElement>(".atlas-tab.is-current");
+    current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [areaId, showIndex]);
+
+  useEffect(() => {
+    setTopicPanel(null);
+  }, [topicId]);
+
+  useEffect(() => {
+    if (!showThemes || !themeRef.current) return;
+    const current = themeRef.current.querySelector<HTMLElement>(".atlas-theme.is-on");
+    current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [groupId, showThemes]);
+
+  useEffect(() => {
+    if (view !== "explore") return;
+    const topics = groups.find((g) => g.id === groupId)?.topics ?? [];
+    if (topicId && topics.some((t) => t.id === topicId)) return;
+    if (topics[0]) setTopicId(topics[0].id);
+  }, [view, groupId, topicId, groups]);
 
   const name = r.intake.callName || r.intake.name;
   const placement = topic?.placementId ? modulesById.get(topic.placementId) : undefined;
   const reading = topic?.readingId ? modulesById.get(topic.readingId) : undefined;
   const fact = topic?.factId ? modulesById.get(topic.factId) : undefined;
   const subtitle = fact?.subtitle ?? reading?.subtitle ?? placement?.subtitle;
+  const periodLine = rightNow.period?.meaning ?? rightNow.headline;
+
+  function selectArea(id: string) {
+    setAreaId(id);
+    setView("now");
+    setTopicId(null);
+    setTopicPanel(null);
+    setShowIndex(false);
+    setShowThemes(false);
+  }
+
+  function stepArea(delta: number) {
+    if (!areas.length) return;
+    const next = (areaIndex + delta + areas.length) % areas.length;
+    setAreaId(areas[next].id);
+  }
 
   function selectGroup(id: string) {
     setView("explore");
     setGroupId(id);
-    setTopicId(null);
+    const nextGroup = groups.find((g) => g.id === id);
+    setTopicId(nextGroup?.topics[0]?.id ?? null);
+    setTopicPanel(null);
+    setShowThemes(false);
   }
 
   function selectTopic(id: string) {
     setView("explore");
     setTopicId(id);
+    setTopicPanel(null);
+  }
+
+  function stepTopic(delta: number) {
+    if (!groupTopics.length) return;
+    const next = (topicIndex + delta + groupTopics.length) % groupTopics.length;
+    setTopicId(groupTopics[next].id);
+  }
+
+  function openMaps() {
+    const first = groupTopics[0] ?? groups[0]?.topics[0];
+    setView("explore");
+    setTopicId(first?.id ?? null);
+    setTopicPanel(null);
+    setDepth(null);
+    setShowMore(false);
+    setShowThemes(false);
+    setShowIndex(false);
+  }
+
+  function backToNow() {
+    setView("now");
+    setTopicId(null);
+    setTopicPanel(null);
+    setShowThemes(false);
+    setShowIndex(false);
+  }
+
+  function toggleDepth(panel: Exclude<DepthPanel, null>) {
+    setDepth((d) => (d === panel ? null : panel));
+  }
+
+  function toggleTopicPanel(panel: Exclude<TopicPanel, null>) {
+    setTopicPanel((p) => (p === panel ? null : panel));
   }
 
   return (
-    <div className="grid gap-8 enter min-w-0">
-      <aside className="why" aria-label="How to read what follows">
-        <p>
-          What the chart states (sign, house, period dates) is data. The story built from it is interpretation. Prefer
-          the plain reading. When two readings compete, both can stand. The past-check later is the only honest measure
-          of how much weight the forward reports deserve.
-        </p>
-      </aside>
+    <div className="stage-body enter">
+      {view === "now" && openArea && (
+        <div className="atlas-shell">
+          <article className="atlas-reader" key={openArea.id}>
+            {periodLine ? (
+              <p className="atlas-note" role="note">
+                <span className="atlas-note__label">Running now</span>
+                <span className="atlas-note__text">{periodLine}</span>
+              </p>
+            ) : null}
 
-      <nav className="tab-seg" aria-label="Atlas views">
-        <button
-          type="button"
-          aria-current={view === "now" ? "true" : undefined}
-          onClick={() => setView("now")}
-        >
-          Right now
-        </button>
-        <button
-          type="button"
-          aria-current={view === "explore" ? "true" : undefined}
-          onClick={() => {
-            setView("explore");
-            setTopicId(null);
-          }}
-        >
-          Explore life areas
-        </button>
-      </nav>
+            <nav className="atlas-crumb" aria-label="Location">
+              <button
+                type="button"
+                className={`atlas-crumb__link${showIndex ? " is-on" : ""}`}
+                aria-expanded={showIndex}
+                aria-haspopup="listbox"
+                onClick={() => setShowIndex((v) => !v)}
+              >
+                Areas
+              </button>
+              <span className="atlas-crumb__sep" aria-hidden>
+                ›
+              </span>
+              <span className="atlas-crumb__here">{openArea.area}</span>
+              <span className="atlas-crumb__hint">Click the trail to switch sections</span>
+            </nav>
 
-      {view === "now" && (
-        <section className="grid gap-6">
-          <div className="snapshot">
-            <div className="snapshot__item">
-              <span className="snapshot__label">Running now</span>
-              <span className="snapshot__value">{rightNow.period?.meaning ?? rightNow.headline}</span>
-            </div>
-            {rightNow.sky.slice(0, 2).map((s) => (
-              <div key={s.label} className="snapshot__item">
-                <span className="snapshot__label">{s.label}</span>
-                <span className="snapshot__value">{s.detail}</span>
-              </div>
-            ))}
-          </div>
+            {showIndex && (
+              <nav ref={indexRef} className="atlas-more atlas-crumb-menu" aria-label="Areas of life">
+                {areas.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className={`linkbtn${a.id === openArea.id ? " is-on" : ""}`}
+                    aria-current={a.id === openArea.id ? "true" : undefined}
+                    onClick={() => selectArea(a.id)}
+                  >
+                    {a.area}
+                  </button>
+                ))}
+              </nav>
+            )}
 
-          {rightNow.period && (
-            <details className="disclose">
-              <summary>
-                Period names & dates
-                {rightNow.period.classical ? (
-                  <span className="muted" style={{ fontWeight: 400 }}>
-                    {" "}
-                    · {rightNow.period.classical}
-                  </span>
-                ) : null}
-                <span aria-hidden>▾</span>
-              </summary>
-              <div className="disclose__body">
-                <ul className="how">
-                  {rightNow.period.chartDetail.lines.map((line) => (
-                    <li key={line}>
-                      <p>{line}</p>
-                    </li>
+            <header className="atlas-reader__head">
+              <h3 className="atlas-reader__title">{openArea.area}</h3>
+              <p className="atlas-reader__practice">{openArea.focus}</p>
+            </header>
+
+            <div className="atlas-reader__body">
+              <p className="atlas-reader__watch">{openArea.today}</p>
+
+              {showLeads && (
+                <div className="atlas-reader__section" aria-live="polite">
+                  <h4>What leads it</h4>
+                  <p>{openArea.ledBy}</p>
+                </div>
+              )}
+
+              {depth === "factors" && (
+                <div className="atlas-depth" aria-live="polite">
+                  <p>{openArea.chartDetail.summary}</p>
+                  {openArea.chartDetail.lines.map((line) => (
+                    <p key={line}>{line}</p>
                   ))}
-                </ul>
-              </div>
-            </details>
-          )}
+                </div>
+              )}
 
-          <ul className="areas" aria-label="Areas of life">
-            {rightNow.areas.map((a) => (
-              <li key={a.id} className="area">
-                <h3 className="area__h">
+              {depth === "period" && rightNow.period && (
+                <div className="atlas-depth" aria-live="polite">
+                  {rightNow.period.classical ? <p>{rightNow.period.classical}</p> : null}
+                  {rightNow.period.chartDetail.lines.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <footer className="atlas-reader__foot">
+              <div className="atlas-foot__primary">
+                <div className="atlas-links" role="group" aria-label="More detail">
                   <button
                     type="button"
-                    className="area__trigger"
-                    aria-expanded="false"
-                    onClick={(e) => {
-                      const li = (e.currentTarget as HTMLElement).closest(".area");
-                      const list = li?.parentElement;
-                      if (!li || !list) return;
-                      const willOpen = !li.classList.contains("is-open");
-                      list.querySelectorAll(".area.is-open").forEach((other) => {
-                        if (other === li) return;
-                        other.classList.remove("is-open");
-                        const btn = other.querySelector(".area__trigger");
-                        const body = other.querySelector(".area__body") as HTMLElement | null;
-                        btn?.setAttribute("aria-expanded", "false");
-                        if (body) body.hidden = true;
-                      });
-                      li.classList.toggle("is-open", willOpen);
-                      e.currentTarget.setAttribute("aria-expanded", willOpen ? "true" : "false");
-                      const body = li.querySelector(".area__body") as HTMLElement | null;
-                      if (body) body.hidden = !willOpen;
-                    }}
+                    className={`linkbtn${showLeads ? " is-on" : ""}`}
+                    aria-pressed={showLeads}
+                    onClick={() => setShowLeads((v) => !v)}
                   >
-                    <span>
-                      <span className="area__name">{a.area}</span>
-                      <span className="area__basis">{a.focus}</span>
-                    </span>
-                    <svg className="area__chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                    {showLeads ? "Hide what leads it" : "What leads it"}
                   </button>
-                </h3>
-                <div className="area__body" hidden>
-                  <div className="area__part area__part--practice">
-                    <h4>One practice</h4>
-                    <p>{a.focus}</p>
-                  </div>
-                  <div className="area__part">
-                    <h4>What to watch</h4>
-                    <p>{a.today}</p>
-                  </div>
-                  <div className="area__part">
-                    <h4>What leads it</h4>
-                    <p>{a.ledBy}</p>
-                  </div>
-                  <details className="disclose" style={{ background: "transparent" }}>
-                    <summary style={{ minHeight: 44, padding: "8px 0", fontSize: "var(--t-sm)" }}>
-                      Chart factors
-                      <span aria-hidden>▾</span>
-                    </summary>
-                    <div className="area__deep-body">
-                      <p>{a.chartDetail.summary}</p>
-                      {a.chartDetail.lines.map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                    </div>
-                  </details>
+                  <button
+                    type="button"
+                    className={`linkbtn${depth === "factors" ? " is-on" : ""}`}
+                    aria-pressed={depth === "factors"}
+                    onClick={() => toggleDepth("factors")}
+                  >
+                    {depth === "factors" ? "Hide chart factors" : "Chart factors"}
+                  </button>
+                  <button
+                    type="button"
+                    className={`linkbtn${showMore ? " is-on" : ""}`}
+                    aria-expanded={showMore}
+                    onClick={() => setShowMore((v) => !v)}
+                  >
+                    {showMore ? "Less" : "More"}
+                  </button>
                 </div>
-              </li>
-            ))}
-          </ul>
 
-          <p className="small">{rightNow.boundary}</p>
-          <button type="button" className="linkbtn" onClick={() => setView("explore")}>
-            Explore life areas →
-          </button>
-        </section>
+                <div className="atlas-nav">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm atlas-nav__btn"
+                    aria-label="Previous area"
+                    onClick={() => stepArea(-1)}
+                  >
+                    ‹
+                  </button>
+                  <span className="atlas-nav__pos">
+                    {areaIndex + 1} / {areas.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm atlas-nav__btn"
+                    aria-label="Next area"
+                    onClick={() => stepArea(1)}
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+
+              {showMore && (
+                <div className="atlas-more" role="group" aria-label="Further detail">
+                  {rightNow.period && (
+                    <button
+                      type="button"
+                      className={`linkbtn${depth === "period" ? " is-on" : ""}`}
+                      aria-pressed={depth === "period"}
+                      onClick={() => toggleDepth("period")}
+                    >
+                      {depth === "period" ? "Hide period detail" : "Period detail"}
+                    </button>
+                  )}
+                  <button type="button" className="linkbtn" onClick={openMaps}>
+                    More maps
+                  </button>
+                </div>
+              )}
+            </footer>
+          </article>
+        </div>
       )}
 
-      {view === "explore" && topicId == null && (
-        <section className="grid gap-6">
-          <nav className="atlas-themes" aria-label="Chart themes">
-            {groups.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                className={`atlas-theme${groupId === g.id ? " is-on" : ""}`}
-                aria-current={groupId === g.id ? "true" : undefined}
-                onClick={() => selectGroup(g.id)}
-              >
-                {g.label}
+      {view === "explore" && topic && (
+        <div className="maps-shell enter">
+          <article className="atlas-reader maps-reader" key={topic.id}>
+            <nav className="atlas-crumb" aria-label="Location">
+              <button type="button" className="atlas-crumb__link" onClick={backToNow}>
+                Chart maps
               </button>
-            ))}
-          </nav>
-          <ul className="atlas-topics" aria-label="Topics in this theme">
-            {(group?.topics ?? []).map((t) => (
-              <li key={t.id}>
-                <button type="button" className="atlas-topic" onClick={() => selectTopic(t.id)}>
-                  <span className="atlas-topic__name">{t.label}</span>
-                  <span className="atlas-topic__hint">{t.plain}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+              <span className="atlas-crumb__sep" aria-hidden>
+                ›
+              </span>
+              <button
+                type="button"
+                className={`atlas-crumb__link${showThemes ? " is-on" : ""}`}
+                aria-expanded={showThemes}
+                aria-haspopup="listbox"
+                onClick={() => setShowThemes((v) => !v)}
+              >
+                {topic.groupLabel}
+              </button>
+              <span className="atlas-crumb__sep" aria-hidden>
+                ›
+              </span>
+              <span className="atlas-crumb__here">{topic.label}</span>
+              <span className="atlas-crumb__hint">Click the trail to switch sections</span>
+            </nav>
 
-      {view === "explore" && topic && topicId != null && (
-        <article className="atlas-focus">
-          <button
-            type="button"
-            className="linkbtn atlas-focus__back"
-            onClick={() => setTopicId(null)}
-          >
-            ← All topics
-          </button>
-          <header>
-            <p className="atlas-focus__kicker">{topic.groupLabel}</p>
-            <h3 className="atlas-focus__title">{topic.label}</h3>
-            {topic.classical && <p className="atlas-focus__classical">{topic.classical}</p>}
-          </header>
-
-          {topic.readingId && (
-            <div className="atlas-focus__section">
-              <h4>Counsel</h4>
-              <TopicWords reading={reading} name={name} />
-            </div>
-          )}
-
-          <div className="atlas-focus__section">
-            <h4>What this is</h4>
-            <p>{topic.plain}</p>
-            {subtitle?.relevance && (
-              <p className="note text-[13.5px] leading-snug" style={{ marginTop: 8 }}>
-                <span className="muted" style={{ display: "block", marginBottom: 2 }}>
-                  For {name}
-                </span>
-                {subtitle.relevance}
-              </p>
+            {showThemes && (
+              <nav ref={themeRef} className="atlas-more atlas-crumb-menu" aria-label="Chart themes">
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className={`linkbtn${groupId === g.id ? " is-on" : ""}`}
+                    aria-current={groupId === g.id ? "true" : undefined}
+                    onClick={() => selectGroup(g.id)}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </nav>
             )}
-          </div>
 
-          {(topic.placementId || topic.factId) && (
-            <div className="atlas-focus__section">
-              <h4>Chart map</h4>
-              <TopicMap topic={topic} fact={fact} placement={placement} chart={r} />
+            <header className="atlas-reader__head">
+              <h3 className="atlas-reader__title">{topic.label}</h3>
+            </header>
+
+            <div className="atlas-reader__body">
+              <p className="atlas-reader__watch">{topic.plain}</p>
+
+              {topicPanel === "counsel" && topic.readingId && (
+                <div className="atlas-depth" aria-live="polite">
+                  <TopicWords reading={reading} name={name} />
+                </div>
+              )}
+
+              {topicPanel === "map" && (topic.placementId || topic.factId) && (
+                <div className="atlas-depth" aria-live="polite">
+                  <TopicMap topic={topic} fact={fact} placement={placement} chart={r} />
+                </div>
+              )}
+
+              {topicPanel === "classical" && topic.classical && (
+                <div className="atlas-depth" aria-live="polite">
+                  <p>{topic.classical}</p>
+                </div>
+              )}
+
+              {topicPanel === "forYou" && subtitle?.relevance && (
+                <div className="atlas-depth" aria-live="polite">
+                  <p>
+                    <span className="muted" style={{ display: "block", marginBottom: 4 }}>
+                      For {name}
+                    </span>
+                    {subtitle.relevance}
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </article>
-      )}
 
+            <footer className="atlas-reader__foot">
+              <div className="atlas-foot__primary">
+                <div className="atlas-links" role="group" aria-label="Topic detail">
+                  {topic.readingId && (
+                    <button
+                      type="button"
+                      className={`linkbtn${topicPanel === "counsel" ? " is-on" : ""}`}
+                      aria-pressed={topicPanel === "counsel"}
+                      onClick={() => toggleTopicPanel("counsel")}
+                    >
+                      {topicPanel === "counsel" ? "Hide counsel" : "Counsel"}
+                    </button>
+                  )}
+                  {(topic.placementId || topic.factId) && (
+                    <button
+                      type="button"
+                      className={`linkbtn${topicPanel === "map" ? " is-on" : ""}`}
+                      aria-pressed={topicPanel === "map"}
+                      onClick={() => toggleTopicPanel("map")}
+                    >
+                      {topicPanel === "map" ? "Hide chart map" : "Chart map"}
+                    </button>
+                  )}
+                  {topic.classical && (
+                    <button
+                      type="button"
+                      className={`linkbtn${topicPanel === "classical" ? " is-on" : ""}`}
+                      aria-pressed={topicPanel === "classical"}
+                      onClick={() => toggleTopicPanel("classical")}
+                    >
+                      {topicPanel === "classical" ? "Hide classical name" : "Classical name"}
+                    </button>
+                  )}
+                  {subtitle?.relevance && (
+                    <button
+                      type="button"
+                      className={`linkbtn${topicPanel === "forYou" ? " is-on" : ""}`}
+                      aria-pressed={topicPanel === "forYou"}
+                      onClick={() => toggleTopicPanel("forYou")}
+                    >
+                      {topicPanel === "forYou" ? `Hide for ${name}` : `For ${name}`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="atlas-nav">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm atlas-nav__btn"
+                    aria-label="Previous topic"
+                    onClick={() => stepTopic(-1)}
+                  >
+                    ‹
+                  </button>
+                  <span className="atlas-nav__pos">
+                    {topicIndex + 1} / {groupTopics.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm atlas-nav__btn"
+                    aria-label="Next topic"
+                    onClick={() => stepTopic(1)}
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            </footer>
+          </article>
+        </div>
+      )}
     </div>
   );
 }
@@ -487,15 +677,18 @@ function TopicWords({ reading, name }: { reading?: ReadingModule; name: string }
           </div>
         </dl>
         {card.chartDetail && (
-          <details className="text-[13px]">
-            <summary className="see-more cursor-pointer list-none w-fit [&::-webkit-details-marker]:hidden">
+          <details className="disclose disclose--quiet">
+            <summary>
               {card.chartDetail.summary}
+              <span aria-hidden>▾</span>
             </summary>
-            <ul className="mt-2 grid gap-1.5 muted leading-relaxed pl-0">
-              {card.chartDetail.lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+            <div className="disclose__body">
+              <ul className="grid gap-1.5 muted leading-relaxed pl-0">
+                {card.chartDetail.lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
           </details>
         )}
         <p className="muted text-[12.5px]">

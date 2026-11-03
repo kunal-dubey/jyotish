@@ -4,6 +4,8 @@ import type { Status } from "@/lib/types";
 import { STATUS_ORDER } from "@/lib/types";
 import { api, type LoadedReading } from "./api";
 import ChartPanel from "./ChartPanel";
+import CosmicLoader from "./CosmicLoader";
+import ForwardPanel, { type ForwardTab } from "./ForwardPanel";
 import ScorePanel from "./ScorePanel";
 import StageRunner from "./StageRunner";
 import ModulesPanel from "./ModulesPanel";
@@ -11,7 +13,6 @@ import { TermLink } from "./TermLink";
 
 /** Four stages — names match the UX spec. */
 type Path = "confirm" | "today" | "past" | "forward";
-type ForwardTab = "reports" | "guidance" | "protocol";
 
 const at = (s: Status) => STATUS_ORDER.indexOf(s);
 
@@ -28,7 +29,7 @@ const PATH: {
     id: "confirm",
     title: "Confirm the Birth Moment",
     short: "Birth Chart",
-    purpose: "Changing details later resets confirmation and any past-check scores.",
+    purpose: "Check the chart against the recorded moment. Changing details later resets confirmation and past-check scores.",
     doneAt: "confirmed",
     openAt: "chart",
   },
@@ -36,7 +37,7 @@ const PATH: {
     id: "today",
     title: "Chart Atlas",
     short: "Chart Atlas",
-    purpose: "Twelve areas of life, one plain line each. Open an area to see why it reads that way, then open it further for the chart behind it.",
+    purpose: "Pick an area. Read the plain counsel. Open chart depth when you want it.",
     doneAt: "confirmed",
     openAt: "chart",
   },
@@ -44,16 +45,16 @@ const PATH: {
     id: "past",
     title: "Past-Check",
     short: "Past-Check",
-    purpose: "Statements written from the chart before anyone read your history. Score each one against what actually happened.",
+    purpose: "Score chart statements against years you already lived — before any forecast.",
     doneAt: "scored",
     openAt: "confirmed",
     paid: true,
   },
   {
     id: "forward",
-    title: "Reports",
-    short: "Reports",
-    purpose: "Forward reports sit behind the past-check. This is what opens, and when.",
+    title: "Your reading",
+    short: "Reading",
+    purpose: "Plain priorities after the past-check — then confidence, chart notes, and a living page.",
     doneAt: "protocol",
     openAt: "scored",
     paid: true,
@@ -70,8 +71,9 @@ function furthest(s: Status, paidOk: boolean): Path {
 
 function forwardTabFor(s: Status): ForwardTab {
   if (at(s) >= at("protocol")) return "protocol";
-  if (at(s) >= at("guidance")) return "guidance";
-  return "reports";
+  if (at(s) >= at("guidance")) return "reading";
+  if (at(s) >= at("reports")) return "howSure";
+  return "reading";
 }
 
 function stageNote(s: (typeof PATH)[number], reading: LoadedReading, paidOk: boolean, done: boolean, open: boolean) {
@@ -109,8 +111,7 @@ export default function ReadingView({ id }: { id: string }) {
   const [r, setR] = useState<LoadedReading | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [path, setPath] = useState<Path | null>(null);
-  const [forwardTab, setForwardTab] = useState<ForwardTab>("reports");
-  const [showFoundation, setShowFoundation] = useState(false);
+  const [forwardTab, setForwardTab] = useState<ForwardTab>("reading");
   const [editBirth, setEditBirth] = useState(false);
 
   const onReading = useCallback((next: LoadedReading) => {
@@ -118,7 +119,7 @@ export default function ReadingView({ id }: { id: string }) {
       if (prev?.status === "chart" && next.status === "confirmed") setPath("today");
       if (prev?.status === "past_check" && next.status === "scored") {
         setPath("forward");
-        setForwardTab("reports");
+        setForwardTab("reading");
       }
       return {
         ...next,
@@ -148,11 +149,7 @@ export default function ReadingView({ id }: { id: string }) {
 
   if (err) return <p className="note note-bad m-4 sm:m-8">{err}</p>;
   if (!r || !path) {
-    return (
-      <div className="app-shell grid place-items-center min-h-[40vh]">
-        <span className="pulse" aria-hidden />
-      </div>
-    );
+    return <CosmicLoader size="lg" fullPage label="Casting your chart" />;
   }
 
   const reading = r;
@@ -190,12 +187,14 @@ export default function ReadingView({ id }: { id: string }) {
 
   const claimsReady = !!(reading.outputs.claims && reading.outputs.claims.length > 0);
   const pastGenerating = reading.generating === "past";
-  const showPastRunner = !claimsReady || showFoundation || pastGenerating;
   const pastScored = at(reading.status) >= at("scored");
+  const pastIdle = path === "past" && paidOk && !claimsReady && !pastGenerating;
+  const forwardActive = path === "forward" && paidOk && pastScored;
+  const fitPage = path === "today" || (path === "past" && !pastIdle) || forwardActive;
 
   return (
-    <div className="app-shell">
-      <div className="reading enter">
+    <div className={`app-shell${fitPage ? " app-shell--fit" : ""}`}>
+      <div className={`reading enter${fitPage ? " reading--fit" : ""}`}>
         <div className="rail">
           <a href="#/" className="linkbtn rail__back">
             ‹ All Readings
@@ -281,12 +280,18 @@ export default function ReadingView({ id }: { id: string }) {
           </button>
         </div>
 
-        <section className="stage-main" aria-label={current.short} key={path}>
+        <section
+          className={`stage-main${fitPage ? " stage-main--fit" : ""}`}
+          aria-label={current.short}
+          key={path}
+        >
           <div className="stage-head">
             <h2 className="stage-title" tabIndex={-1}>
               {current.title}
             </h2>
-            <p className="lede">{current.purpose}</p>
+            {path !== "today" && path !== "past" && path !== "forward" && (
+              <p className="lede">{current.purpose}</p>
+            )}
           </div>
 
           {path === "confirm" && (
@@ -299,18 +304,14 @@ export default function ReadingView({ id }: { id: string }) {
                 }}
                 startEditing={editBirth}
               />
-              <div className="stage-foot">
-                <p>
-                  {at(reading.status) >= at("confirmed")
-                    ? "Chart confirmed. Next: the atlas in plain words — then a blind past-check before any forecast."
-                    : "Confirm the birth details above to continue."}
-                </p>
-                {at(reading.status) >= at("confirmed") && (
+              {at(reading.status) >= at("confirmed") && (
+                <div className="stage-foot">
+                  <p>Next: the atlas in plain words — then a blind past-check before any forecast.</p>
                   <button type="button" className="btn btn--primary" onClick={() => go("today")}>
                     Continue to Atlas
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </>
           )}
 
@@ -318,7 +319,6 @@ export default function ReadingView({ id }: { id: string }) {
             <>
               <ModulesPanel r={r} />
               <div className="stage-foot">
-                <p>Next, the past-check: a handful of statements to score, just a few minutes. The reports open after you score them.</p>
                 <button type="button" className="btn btn--primary" onClick={() => go("past")}>
                   {paidOk ? "Continue Past-Check" : "See Past-Check"}
                 </button>
@@ -339,47 +339,49 @@ export default function ReadingView({ id }: { id: string }) {
 
           {path === "past" && paidOk && (
             <>
-              {!claimsReady && !pastGenerating && (
-                <div className="panel">
-                  <p>
-                    Claims are written from the name, birth data, and how the time is known. Nothing from occupation or
-                    questions yet.
-                  </p>
-                </div>
-              )}
-
-              {claimsReady && !pastGenerating && (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="small">Foundation written</p>
-                  <button type="button" className="linkbtn" onClick={() => setShowFoundation((v) => !v)}>
-                    {showFoundation ? "Hide foundation" : "Read the foundation"}
-                  </button>
-                </div>
-              )}
-
-              {showPastRunner && (
-                <StageRunner
-                  r={r}
-                  stage="past"
-                  output={r.outputs.past}
-                  label="Generate the past-check"
-                  onReading={onReading}
-                />
-              )}
-
-              {claimsReady && !pastGenerating && (
-                <ScorePanel key={r.outputs.past?.length} r={r} onReading={onReading} />
-              )}
+              <div className="stage-body">
+                {claimsReady && !pastGenerating ? (
+                  <ScorePanel key={r.outputs.past?.length} r={r} onReading={onReading} />
+                ) : pastGenerating ? (
+                  <div className="past-wait enter">
+                    <StageRunner
+                      r={r}
+                      stage="past"
+                      output={r.outputs.past}
+                      label="Generate the past-check"
+                      onReading={onReading}
+                    />
+                  </div>
+                ) : (
+                  <div className="past-start enter">
+                    <article className="atlas-reader">
+                      <header className="atlas-reader__head">
+                        <h3 className="atlas-reader__title">Past check</h3>
+                        <p className="atlas-reader__practice">
+                          Blind claims from periods already lived. Score how each fits before any forecast opens.
+                        </p>
+                      </header>
+                      <StageRunner
+                        r={r}
+                        stage="past"
+                        output={r.outputs.past}
+                        label="Generate the past-check"
+                        onReading={onReading}
+                      />
+                    </article>
+                  </div>
+                )}
+              </div>
 
               <div className="stage-foot">
                 <button type="button" className="btn btn--ghost" onClick={() => go("today")}>
                   ← Atlas
                 </button>
-                {pastScored && (
+                {pastScored ? (
                   <button type="button" className="btn btn--primary" onClick={() => go("forward")}>
-                    Open Reports
+                    Open your reading
                   </button>
-                )}
+                ) : null}
               </div>
             </>
           )}
@@ -399,105 +401,35 @@ export default function ReadingView({ id }: { id: string }) {
             <>
               {!pastScored ? (
                 <div className="locked">
-                  <h3>Score the past-check to open these</h3>
-                  <p>Score every claim. Either way the reports open afterwards; a low score adds a note to read them as suggestions.</p>
+                  <h3>Score the past-check before any forecast</h3>
+                  <p>
+                    Score every claim. Either way your reading opens afterwards; a low score keeps the advice inside a
+                    quieter confidence volume.
+                  </p>
                   <button type="button" className="btn btn--primary" onClick={() => go("past")}>
                     Go to the past-check
                   </button>
                 </div>
               ) : (
-                <>
-                  <div className="tab-seg" role="tablist" aria-label="Forward pieces">
-                    {(
-                      [
-                        { id: "reports" as const, name: "Reports", ready: !!r.outputs.reports },
-                        { id: "guidance" as const, name: "Guidance", ready: !!r.outputs.guidance },
-                        { id: "protocol" as const, name: "Living page", ready: !!r.outputs.protocol },
-                      ] as const
-                    ).map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={forwardTab === t.id}
-                        onClick={() => setForwardTab(t.id)}
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  {forwardTab === "reports" && (
-                    <div className="grid gap-6">
-                      <StageRunner
-                        r={r}
-                        stage="reports"
-                        output={r.outputs.reports}
-                        label="Write the reports"
-                        onReading={onReading}
-                      />
-                      {!!r.outputs.reports && (
-                        <button type="button" className="btn btn--ghost w-fit" onClick={() => setForwardTab("guidance")}>
-                          Continue to guidance
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {forwardTab === "guidance" && (
-                    <div className="grid gap-6">
-                      <StageRunner
-                        r={r}
-                        stage="guidance"
-                        output={r.outputs.guidance}
-                        label="Write the guidance"
-                        onReading={onReading}
-                      />
-                      {!!r.outputs.guidance && (
-                        <button type="button" className="btn btn--ghost w-fit" onClick={() => setForwardTab("protocol")}>
-                          Continue to living page
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {forwardTab === "protocol" && (
-                    <div className="grid gap-6">
-                      <StageRunner
-                        r={r}
-                        stage="protocol"
-                        output={r.outputs.protocol ? "ready" : undefined}
-                        showOutput={false}
-                        label="Build the living page"
-                        onReading={onReading}
-                      />
-                      {r.outputs.protocol && !r.generating && (
-                        <div className="grid gap-4">
-                          <div className="actions">
-                            <a className="btn btn--primary" href={`/api/readings/${r.id}/protocol?download=1`}>
-                              Download HTML
-                            </a>
-                            <a className="btn btn--ghost" href={`/api/readings/${r.id}/protocol`} target="_blank" rel="noreferrer">
-                              Open in a new tab
-                            </a>
-                          </div>
-                          <iframe
-                            key={r.updatedAt}
-                            title="Living page preview"
-                            src={`/api/readings/${r.id}/protocol`}
-                            className="w-full h-[55vh] sm:h-[70vh] rounded-[4px] bg-[var(--s1)] max-w-full"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
+                <div className="stage-body">
+                  <ForwardPanel r={r} tab={forwardTab} onTab={setForwardTab} onReading={onReading} />
+                </div>
               )}
 
               <div className="stage-foot">
                 <button type="button" className="btn btn--ghost" onClick={() => go("past")}>
                   ← Past-check
                 </button>
+                {pastScored && forwardTab === "reading" && !!r.outputs.guidance && (
+                  <button type="button" className="btn btn--primary" onClick={() => setForwardTab("protocol")}>
+                    Continue to living page
+                  </button>
+                )}
+                {pastScored && (forwardTab === "howSure" || forwardTab === "chartNotes") && (
+                  <button type="button" className="btn btn--primary" onClick={() => setForwardTab("reading")}>
+                    {forwardTab === "chartNotes" ? "Back to your reading" : "Continue to your reading"}
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -510,9 +442,9 @@ export default function ReadingView({ id }: { id: string }) {
 function PaidGate({ onToday }: { onToday: () => void }) {
   return (
     <div className="locked enter">
-      <h3>The full protocol sits behind this step</h3>
+      <h3>The full reading sits behind this step</h3>
       <p>
-        Your atlas — life areas and one practice each — stays open. The past-check and the forward reports are part of
+        Your atlas — life areas and one practice each — stays open. The past-check and the forward reading are part of
         the full protocol: statements about years you already lived, scored before any forecast. Upgrade to unlock them.
       </p>
       <button type="button" className="btn btn--primary" onClick={onToday}>

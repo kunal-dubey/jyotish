@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api, type LlmUsageReport } from "./api";
+import CosmicLoader from "./CosmicLoader";
 
 function fmt(n: number) {
   return n.toLocaleString();
@@ -66,7 +67,7 @@ export default function AdminUsage() {
         {err && <p className="note note-bad">{err}</p>}
         {loading && !report && (
           <div className="grid place-items-center py-16">
-            <span className="pulse" aria-hidden />
+            <CosmicLoader size="md" label="Loading usage" />
           </div>
         )}
 

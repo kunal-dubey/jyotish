@@ -67,7 +67,7 @@ Dotted accent underline (`.term`). Wide screens: hover opens a viewport-clamped 
 ### Motion
 
 - Respect `prefers-reduced-motion`.
-- Allowed: `.enter` / `.enter-slow`, `.pulse`, progress fills, stage-wait ring, `.fade-claim`.
+- Allowed: `.enter` / `.enter-slow`, `CosmicLoader` / `.cosmic`, progress fills, stage-wait ring, `.fade-claim`.
 - Durations: `--dur-sm` 160ms, `--dur-md` 240ms with `--ease-out`.
 
 ## Layout

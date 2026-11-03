@@ -28,19 +28,43 @@ function contrast(a: string, b: string) {
   if (la == null || lb == null) return 0;
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
+/** App design-system surfaces (ui-style-guide) — living page stays on-brand. */
+const APP_LIGHT = {
+  ground: "#F2F2F7",
+  surface: "#FFFFFF",
+  ink: "#1C1C1E",
+  muted: "#4F4F55",
+  accent: "#7A5818",
+  "accent-soft": "#F5ECDB",
+  line: "#D1D1D6",
+  warn: "#8A5A10",
+};
+const APP_DARK = {
+  ground: "#000000",
+  surface: "#1C1C1E",
+  ink: "#F5F5F7",
+  muted: "#AEAEB2",
+  accent: "#D9B77E",
+  "accent-soft": "#2E2618",
+  line: "#38383A",
+  warn: "#EBC690",
+};
+
 function safePalette(p: ProtocolContent["design"]["light"], dark: boolean) {
-  const fallbackInk = dark ? "#eceef3" : "#16120a";
-  const ground = lum(p.ground) == null ? (dark ? "#0b0d12" : "#f4f2ee") : p.ground;
-  const ink = contrast(p.ink, ground) >= 7 ? p.ink : fallbackInk;
-  const muted = contrast(p.muted, ground) >= 4.5 ? p.muted : `color-mix(in oklab, ${ink} 72%, ${ground})`;
-  const pick = (c: string, alt: string) => (lum(c) == null ? alt : c);
+  const base = dark ? APP_DARK : APP_LIGHT;
+  // Keep chart-derived accent only when it stays legible on the app ground
+  const accent = lum(p.accent) != null && contrast(p.accent, base.ground) >= 3 ? p.accent : base.accent;
+  const accentSoft =
+    lum(p.accentSoft) != null && contrast(base.ink, p.accentSoft) >= 4.5 ? p.accentSoft : base["accent-soft"];
   return {
-    ground, ink, muted,
-    surface: pick(p.surface, dark ? "#11141b" : `color-mix(in oklab, ${ink} 6%, ${ground})`),
-    accent: pick(p.accent, dark ? "#d9b77e" : ink),
-    "accent-soft": pick(p.accentSoft, dark ? "#2a2418" : `color-mix(in oklab, ${ink} 12%, ${ground})`),
-    line: pick(p.line, dark ? "#323949" : `color-mix(in oklab, ${ink} 18%, ${ground})`),
-    warn: pick(p.warn, dark ? "#ebc690" : ink),
+    ground: base.ground,
+    surface: base.surface,
+    ink: base.ink,
+    muted: base.muted,
+    accent,
+    "accent-soft": accentSoft,
+    line: base.line,
+    warn: base.warn,
   };
 }
 const vars = (o: Record<string, string>) => Object.entries(o).map(([k, v]) => `--${k}:${v};`).join("");
@@ -53,9 +77,8 @@ export function buildProtocolHtml(r: Reading): string {
   const name = i.callName || i.name;
   const light = safePalette(c.design.light, false);
   const dark = safePalette(c.design.dark, true);
-  const fonts = [c.design.displayFont, c.design.bodyFont]
-    .map((f) => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,500;0,600;0,700;1,400`)
-    .join("&");
+  // Match main app: Jost display + system UI body (ui-style-guide)
+  const fonts = "family=Jost:ital,wght@0,300;0,400;0,500;0,600;1,400";
 
   const labelled = new Map(c.seasons.map((s) => [s.key, s]));
   const seasons = seasonPeriods(r).map((p) => {
@@ -88,12 +111,12 @@ export function buildProtocolHtml(r: Reading): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(name)} · Protocol</title>
+<title>${esc(name)} · Living page</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap">
 <style>
-:root{${vars(light)}--display:"${c.design.displayFont}";--body:"${c.design.bodyFont}";color-scheme:light dark}
+:root{${vars(light)}--display:"Jost",system-ui,sans-serif;--body:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color-scheme:light dark}
 @media (prefers-color-scheme:dark){:root{${vars(dark)}}}
 ${css}
 </style>

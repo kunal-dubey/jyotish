@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Intake, TimeSource } from "@/lib/types";
 import { api, type AuthUser, type LoadedReading } from "./api";
+import TimeField from "./TimeField";
 
 type Place = Intake["place"];
 
@@ -44,8 +45,27 @@ export default function NewReadingDialog({
   useEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
+    if (open) {
+      if (!el.open) el.showModal();
+      return;
+    }
+    if (el.open) el.close();
+  }, [open]);
+
+  // Reset form whenever the dialog is freshly opened.
+  useEffect(() => {
+    if (!open) return;
+    setName("");
+    setDate("");
+    setTime("");
+    setPlaceQuery("");
+    setPlace(null);
+    setResults([]);
+    setTimeSource("");
+    setEmail("");
+    setPassword("");
+    setErr(null);
+    setBusy(false);
   }, [open]);
 
   useEffect(() => {
@@ -114,7 +134,7 @@ export default function NewReadingDialog({
             ×
           </button>
         </div>
-        <p className="dialog__lede">A name, a birth moment and a place. The chart is cast from these four fields.</p>
+        <p className="dialog__lede">Name, birth moment, and place. The chart is cast from these.</p>
         {err && (
           <div className="form-error" role="alert">
             {err}
@@ -126,20 +146,17 @@ export default function NewReadingDialog({
           </label>
           <input id="f-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="f-date">
-              Birth date <span className="req">required</span>
-            </label>
-            <input id="f-date" className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="f-time">
-              Birth time <span className="req">required</span>
-            </label>
-            <input id="f-time" className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-            <p className="field__help">It sets your rising sign, which changes about every two hours.</p>
-          </div>
+        <div className="field">
+          <label htmlFor="f-date">
+            Birth date <span className="req">required</span>
+          </label>
+          <input id="f-date" className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div className="field">
+          <span id="f-time-label">
+            Birth time <span className="req">required</span>
+          </span>
+          <TimeField value={time} onChange={setTime} variant="boxed" />
         </div>
         <div className="field">
           <label htmlFor="f-place">
@@ -153,34 +170,32 @@ export default function NewReadingDialog({
               setPlaceQuery(e.target.value);
               setPlace(null);
             }}
+            placeholder="City, region, country"
             autoComplete="off"
           />
-          <p className="field__help">City, region, country. Pick a match from the list.</p>
           {results.length > 0 && !place && (
-            <ul className="reading-list" style={{ marginTop: 8 }}>
-              {results.slice(0, 5).map((p) => (
+            <ul className="place-suggest" role="listbox" aria-label="Place matches">
+              {results.slice(0, 4).map((p) => (
                 <li key={p.label}>
                   <button
                     type="button"
-                    className="reading-row"
-                    style={{ width: "100%", textAlign: "left", cursor: "pointer", border: 0 }}
+                    className="place-suggest__row"
+                    role="option"
                     onClick={() => {
                       setPlace(p);
                       setPlaceQuery(p.label);
                       setResults([]);
                     }}
                   >
-                    <span className="reading-row__name" style={{ fontSize: "var(--t-body)" }}>
-                      {p.label}
-                    </span>
+                    {p.label}
                   </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
-        <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend style={{ fontSize: "var(--t-sm)", fontWeight: 500, marginBottom: 8 }}>
+        <fieldset className="field field--flush">
+          <legend>
             How is the birth time known? <span className="req">required</span>
           </legend>
           <div className="choice" role="radiogroup" aria-label="How the birth time is known">
@@ -197,7 +212,7 @@ export default function NewReadingDialog({
               </label>
             ))}
           </div>
-          <p className="field__help">A certificate or hospital record carries more weight than a rounded figure or a guess.</p>
+          <p className="field__help">A certificate or hospital record carries more weight than a guess.</p>
         </fieldset>
         {!user && (
           <div className="field-row">

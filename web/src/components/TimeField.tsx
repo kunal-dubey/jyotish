@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -35,10 +35,13 @@ export default function TimeField({
   value,
   onChange,
   autoFocus,
+  variant = "line",
 }: {
   value: string;
   onChange: (v: string) => void;
   autoFocus?: boolean;
+  /** `boxed` matches standard `.input` fields (modals/forms); `line` is the quiet underline style. */
+  variant?: "line" | "boxed";
 }) {
   const parsed = parseTime(value);
   const initial = parsed ? to12(parsed.h24) : { h12: 0, period: "AM" as const };
@@ -47,6 +50,7 @@ export default function TimeField({
   const [period, setPeriod] = useState<"AM" | "PM">(parsed ? initial.period : "AM");
   const hourRef = useRef<HTMLInputElement>(null);
   const minuteRef = useRef<HTMLInputElement>(null);
+  const periodName = useId();
   /** Sync drafts so blur after auto-advance sees the just-typed digit (e.g. 10–12). */
   const hourDraft = useRef(hour);
   const minuteDraft = useRef(minute);
@@ -163,51 +167,53 @@ export default function TimeField({
   }
 
   return (
-    <div className="time-field" role="group" aria-label="Time of birth">
+    <div className={`time-field${variant === "boxed" ? " time-field--boxed" : ""}`} role="group" aria-label="Time of birth">
       <div className="time-field-row">
-        <input
-          ref={hourRef}
-          className="time-field-digit"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
-          placeholder="—"
-          aria-label="Hour"
-          value={hour}
-          onFocus={() => {
-            focused.current = "hour";
-          }}
-          onChange={(e) => onHourChange(e.target.value)}
-          onBlur={blurHour}
-        />
-        <span className="time-field-colon" aria-hidden>
-          :
-        </span>
-        <input
-          ref={minuteRef}
-          className="time-field-digit"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
-          placeholder="—"
-          aria-label="Minute"
-          value={minute}
-          onFocus={() => {
-            focused.current = "minute";
-          }}
-          onChange={(e) => onMinuteChange(e.target.value)}
-          onBlur={blurMinute}
-        />
-        <div className="choice time-field-period" role="radiogroup" aria-label="AM or PM">
+        <div className={variant === "boxed" ? "time-field-box" : undefined}>
+          <input
+            ref={hourRef}
+            className="time-field-digit"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={2}
+            placeholder="—"
+            aria-label="Hour"
+            value={hour}
+            onFocus={() => {
+              focused.current = "hour";
+            }}
+            onChange={(e) => onHourChange(e.target.value)}
+            onBlur={blurHour}
+          />
+          <span className="time-field-colon" aria-hidden>
+            :
+          </span>
+          <input
+            ref={minuteRef}
+            className="time-field-digit"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={2}
+            placeholder="—"
+            aria-label="Minute"
+            value={minute}
+            onFocus={() => {
+              focused.current = "minute";
+            }}
+            onChange={(e) => onMinuteChange(e.target.value)}
+            onBlur={blurMinute}
+          />
+        </div>
+        <div className="seg time-field-period" role="radiogroup" aria-label="AM or PM">
           {(["AM", "PM"] as const).map((p) => (
             <label key={p}>
               <input
                 type="radio"
-                name="time-period"
+                name={periodName}
                 checked={period === p}
                 onChange={() => setMeridiem(p)}
               />
-              {p}
+              <span>{p}</span>
             </label>
           ))}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef } from "react";
 import { chartSvg, navamsaSvg, regionalStyle, type ChartStyle } from "@/lib/chartSvg";
-import { exportChartCsv, exportChartJson } from "@/lib/chartExport";
+import { exportChartPdf } from "@/lib/chartExport";
 import type { Chart } from "@/lib/types";
 
 function mins(n: number | null) {
@@ -184,15 +184,10 @@ export default function PractitionerDialog({
           </dd>
         </dl>
 
-        <div className="dialog__actions" style={{ justifyContent: "space-between" }}>
-          <div className="btn-row" style={{ flexWrap: "wrap" }}>
-            <button type="button" className="btn btn--ghost" onClick={() => exportChartJson(chart, name)}>
-              Export JSON
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => exportChartCsv(chart, name)}>
-              Export CSV
-            </button>
-          </div>
+        <div className="dialog__actions">
+          <button type="button" className="btn btn--ghost" onClick={() => exportChartPdf(chart, name, placeLabel)}>
+            Export PDF
+          </button>
           <button type="button" className="btn btn--ghost" onClick={onClose}>
             Close
           </button>

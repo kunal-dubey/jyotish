@@ -10,7 +10,8 @@ const jost = Jost({
 
 export const metadata: Metadata = {
   title: "Jyotish Protocol",
-  description: "A natal reading that earns its trust — computed chart, blind past-check, calibrated reports.",
+  description:
+    "An astrology reading: your birth chart in plain words, a check against your past, then reports for what's ahead and where to focus.",
 };
 
 export const viewport: Viewport = {

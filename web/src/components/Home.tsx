@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CORE_WORDS } from "@/lib/glossary";
 import { api } from "./api";
+import CosmicLoader from "./CosmicLoader";
 import { TermLink } from "./TermLink";
 
 const STAGES = ["Birth Chart", "Chart Atlas", "Past-Check", "Reports"] as const;
@@ -27,7 +28,7 @@ const NEXT_DESC: Record<string, string> = {
 };
 
 function progressText(status: string) {
-  if (status === "protocol" || status === "guidance" || status === "reports") return "Reports open";
+  if (status === "protocol" || status === "guidance" || status === "reports") return "Reading open";
   if (status === "scored") return "Now: Reports";
   if (status === "past_check") return "Now: Past-Check";
   if (status === "confirmed") return "Now: Chart Atlas";
@@ -86,25 +87,69 @@ function LockIcon() {
 export default function Home({ onNewReading }: { onNewReading?: () => void }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const switcherRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
-    api.list().then(setRows, (e) => setErr(e.message));
+    let cancelled = false;
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Could not load readings.")), 8_000);
+    });
+    Promise.race([api.list(), timeout]).then(
+      (list) => {
+        if (cancelled) return;
+        setRows(list);
+        setActiveId((prev) => {
+          if (prev && list.some((r) => r.id === prev)) return prev;
+          return list[0]?.id ?? null;
+        });
+      },
+      (e: Error) => {
+        if (!cancelled) {
+          setErr(e.message);
+          setRows([]);
+          setActiveId(null);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const hero = rows?.[0] ?? null;
-  const others = rows && hero ? rows.slice(1) : [];
+  const activeIndex = useMemo(() => {
+    if (!rows?.length || !activeId) return 0;
+    const i = rows.findIndex((r) => r.id === activeId);
+    return i >= 0 ? i : 0;
+  }, [rows, activeId]);
+
+  const hero = rows?.[activeIndex] ?? null;
   const chartCtx = hero
     ? { name: hero.name, rising: hero.lagna, time: hero.time, place: hero.place }
     : undefined;
 
+  useEffect(() => {
+    if (!switcherRef.current) return;
+    const current = switcherRef.current.querySelector<HTMLElement>(".reading-switcher__item.is-current");
+    current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [activeId]);
+
+  function selectReading(id: string) {
+    setActiveId(id);
+  }
+
+  function stepReading(delta: number) {
+    if (!rows?.length) return;
+    const next = (activeIndex + delta + rows.length) % rows.length;
+    setActiveId(rows[next].id);
+  }
+
   return (
-    <main className="app-shell">
-      <section className="library enter">
+    <main className="app-shell app-shell--fit library-shell">
+      <section className="library library--fit enter">
         <header className="library__head">
           <h1 tabIndex={-1}>Your Readings</h1>
-          <p className="lede">
-            Each reading moves through four stages, from the birth chart to the reports. Any astrology word with a
-            dotted underline explains itself when you tap it.
-          </p>
+          <p className="lede">Four stages from birth chart to reports. Dotted words explain themselves.</p>
         </header>
 
         {err && <p className="note note-bad">{err}</p>}
@@ -112,13 +157,13 @@ export default function Home({ onNewReading }: { onNewReading?: () => void }) {
         <div className="library__layout">
           <div className="library__main">
             {!rows && (
-              <div className="empty">
-                <span className="pulse" aria-hidden />
+              <div className="empty empty--fit grid place-items-center">
+                <CosmicLoader size="md" label="Loading readings" />
               </div>
             )}
 
             {rows && rows.length === 0 && (
-              <div className="empty">
+              <div className="empty empty--fit">
                 <h2>No Readings Yet</h2>
                 <p className="muted">Start with a name, a birth moment and a place. The chart is cast from those.</p>
                 <button type="button" className="btn btn--primary" onClick={onNewReading}>
@@ -127,16 +172,56 @@ export default function Home({ onNewReading }: { onNewReading?: () => void }) {
               </div>
             )}
 
-            {hero && (
+            {hero && rows && (
               <>
-                <article className="hero" aria-labelledby="hero-name">
-                  <div>
+                {rows.length > 1 && (
+                  <div className="reading-switcher" aria-label="Switch reading">
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm reading-switcher__nav"
+                      aria-label="Previous reading"
+                      onClick={() => stepReading(-1)}
+                    >
+                      ‹
+                    </button>
+                    <nav ref={switcherRef} className="reading-switcher__list" aria-label="All readings">
+                      {rows.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          className={`reading-switcher__item${r.id === hero.id ? " is-current" : ""}`}
+                          aria-current={r.id === hero.id ? "true" : undefined}
+                          onClick={() => selectReading(r.id)}
+                        >
+                          <span className="reading-switcher__name">{r.name}</span>
+                          <span className="reading-switcher__meta">{progressText(r.status)}</span>
+                        </button>
+                      ))}
+                    </nav>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm reading-switcher__nav"
+                      aria-label="Next reading"
+                      onClick={() => stepReading(1)}
+                    >
+                      ›
+                    </button>
+                  </div>
+                )}
+
+                <article className="hero hero--fit" aria-labelledby="hero-name" key={hero.id}>
+                  <div className="hero__top">
                     <h2 className="hero__name" id="hero-name">
                       {hero.name}
                     </h2>
                     <p className="hero__meta">
                       {hero.date}
-                      {hero.time ? <> · <span className="num">{hero.time}</span></> : null}
+                      {hero.time ? (
+                        <>
+                          {" "}
+                          · <span className="num">{hero.time}</span>
+                        </>
+                      ) : null}
                       {" · "}
                       {hero.place}
                       {hero.lagna ? (
@@ -165,70 +250,79 @@ export default function Home({ onNewReading }: { onNewReading?: () => void }) {
                             <a href={`#/r/${hero.id}`} className="track__label track__label--link">
                               {done && !current ? <CheckIcon /> : null}
                               {name}
-                              <span className="sr-only">
-                                , {done ? "done" : "current"} — open reading
-                              </span>
+                              <span className="sr-only">, {done ? "done" : "current"} — open reading</span>
                             </a>
                           ) : (
                             <span className="track__label">
                               {locked ? <LockIcon /> : null}
                               {name}
-                              <span className="sr-only">
-                                , {locked ? "locked" : "not started"}
-                              </span>
+                              <span className="sr-only">, {locked ? "locked" : "not started"}</span>
                             </span>
                           )}
                         </li>
                       );
                     })}
                   </ol>
-                  <p className="hero__next">{NEXT_DESC[hero.status] ?? NEXT_DESC.chart}</p>
-                  <div className="hero__actions">
-                    <a href={`#/r/${hero.id}`} className="btn btn--primary">
-                      {NEXT_LABEL[hero.status] ?? "Open reading"}
-                    </a>
+                  <div className="hero__foot">
+                    <p className="hero__next">{NEXT_DESC[hero.status] ?? NEXT_DESC.chart}</p>
+                    <div className="hero__actions">
+                      <a href={`#/r/${hero.id}`} className="btn btn--primary">
+                        {NEXT_LABEL[hero.status] ?? "Open reading"}
+                      </a>
+                    </div>
                   </div>
                 </article>
 
-                {others.length > 0 && (
-                  <section aria-labelledby="others-title">
-                    <h2 className="section-title" id="others-title">
-                      Other Readings
-                    </h2>
-                    <ul className="reading-list">
-                      {others.map((r) => (
-                        <li key={r.id}>
-                          <a href={`#/r/${r.id}`} className="reading-row">
-                            <div>
-                              <h3 className="reading-row__name">{r.name}</h3>
-                              <p className="small">
-                                {r.date}
-                                {r.time ? <> · {r.time}</> : null}
-                                {" · "}
-                                {r.place}
-                              </p>
-                            </div>
-                            <p className="reading-row__state">{progressText(r.status)}</p>
-                            <span className="reading-row__chev" aria-hidden>
-                              ›
-                            </span>
-                          </a>
+                <div className="library__help">
+                  <details className="disclose">
+                    <summary>
+                      How a Reading Works
+                      <span aria-hidden>▾</span>
+                    </summary>
+                    <div className="disclose__body">
+                      <ol className="how">
+                        <li>
+                          <h3>Birth Chart · about 2 min</h3>
+                          <p>Confirm the birth moment once. Everything else is cast from it.</p>
                         </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
+                        <li>
+                          <h3>Chart Atlas · about 8 min</h3>
+                          <p>Twelve areas of life in plain words, each with one practice you can use.</p>
+                        </li>
+                        <li>
+                          <h3>Past-Check · about 6 min</h3>
+                          <p>Statements about years you already lived, scored before any forecast.</p>
+                        </li>
+                        <li>
+                          <h3>Reports</h3>
+                          <p>The year ahead, the decade, and a page to keep — after you score.</p>
+                        </li>
+                      </ol>
+                    </div>
+                  </details>
+
+                  <details className="disclose">
+                    <summary>
+                      Why the Past-Check Comes First
+                      <span aria-hidden>▾</span>
+                    </summary>
+                    <div className="disclose__body">
+                      <p>
+                        If the chart cannot describe what already happened, its forecast is decoration. You score it,
+                        and nothing is adjusted afterwards. The pass line is just over half the available points.
+                      </p>
+                    </div>
+                  </details>
+                </div>
               </>
             )}
           </div>
 
-          <aside className="aside" aria-label="Help">
+          <aside className="aside aside--fit" aria-label="Help">
             {hero && (
               <div className="aside__block">
                 <h2>Words to Know</h2>
-                <p className="small">
-                  Tap one for what it means and what it says in {hero.name}&apos;s chart. Click to keep it open.
-                </p>
+                <p className="small">Tap for meaning in {hero.name}&apos;s chart. Click to keep open.</p>
                 <ul className="words">
                   {(["lagna", "house", "dasha", "mahadasha", "antardasha", "nakshatra"] as const).map((id) => {
                     const w = CORE_WORDS.find((x) => x.id === id);
@@ -245,46 +339,6 @@ export default function Home({ onNewReading }: { onNewReading?: () => void }) {
                 </ul>
               </div>
             )}
-
-            <details className="disclose">
-              <summary>
-                How a Reading Works
-                <span aria-hidden>▾</span>
-              </summary>
-              <div className="disclose__body">
-                <ol className="how">
-                  <li>
-                    <h3>Birth Chart · about 2 min</h3>
-                    <p>Confirm the birth moment once. Everything else is cast from it.</p>
-                  </li>
-                  <li>
-                    <h3>Chart Atlas · about 8 min</h3>
-                    <p>Twelve areas of life in plain words, each with one practice you can use.</p>
-                  </li>
-                  <li>
-                    <h3>Past-Check · about 6 min</h3>
-                    <p>Statements about years you already lived, scored before any forecast. How many depends on the report.</p>
-                  </li>
-                  <li>
-                    <h3>Reports</h3>
-                    <p>The year ahead, the decade, and a page to keep — after you score.</p>
-                  </li>
-                </ol>
-              </div>
-            </details>
-
-            <details className="disclose">
-              <summary>
-                Why the Past-Check Comes First
-                <span aria-hidden>▾</span>
-              </summary>
-              <div className="disclose__body">
-                <p>
-                  If the chart cannot describe what already happened, its forecast is decoration. You score it, and
-                  nothing is adjusted afterwards. The pass line is just over half the available points.
-                </p>
-              </div>
-            </details>
           </aside>
         </div>
       </section>

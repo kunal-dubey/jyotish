@@ -1,5 +1,24 @@
 "use client";
-import DemoScorecard from "./DemoScorecard";
+import CosmicScene from "./CosmicScene";
+
+const STEPS = [
+  {
+    t: "Your chart",
+    d: "Enter a name, birth date, time, and place. We cast the chart and show what it holds.",
+  },
+  {
+    t: "Life in plain words",
+    d: "Twelve areas of life — work, home, love, focus — said simply, with the chart behind each one.",
+  },
+  {
+    t: "A check on your past",
+    d: "Mark how well short claims fit years you already lived. The forecast stays closed until you do.",
+  },
+  {
+    t: "Ahead, and where to focus",
+    d: "Then open reports for what's coming — and which paths deserve your attention next.",
+  },
+] as const;
 
 export default function Landing({
   onSignIn,
@@ -9,13 +28,13 @@ export default function Landing({
   onBegin?: () => void;
 }) {
   return (
-    <main className="app-shell">
+    <main className="app-shell land">
       <section className="land-hero enter">
         <div className="land-hero__copy">
-          <h1 className="land-hero__title">A reading that checks itself</h1>
+          <h1 className="land-hero__title">Your chart, checked against your life</h1>
           <p className="land-hero__lede">
-            Confirm the birth moment, read the atlas in plain words, then score the past before any forward counsel
-            opens.
+            Jyotish is an astrology reading: see your birth chart in plain words, score how it fits your past, then get
+            reports for what&apos;s ahead and where to focus.
           </p>
           <div className="land-hero__actions">
             <button type="button" className="btn btn-primary" onClick={onBegin}>
@@ -26,41 +45,19 @@ export default function Landing({
             </button>
           </div>
         </div>
-        <div className="land-hero__stage enter-slow" data-ui>
-          <p className="text-[13px] muted mb-4">Try it — mark a sample claim</p>
-          <DemoScorecard />
+        <div className="land-hero__visual enter-slow">
+          <CosmicScene />
         </div>
       </section>
 
       <ol className="land-steps enter-slow">
-        {[
-          {
-            t: "Birth chart",
-            d: "A name, a birth moment, and a place. You confirm the details once.",
-          },
-          {
-            t: "Chart atlas",
-            d: "Life areas in plain language. Open any one for why, then the chart behind it.",
-          },
-          {
-            t: "Past-check, then reports",
-            d: "Score claims about years you already lived. Forward path opens only after.",
-          },
-        ].map((x) => (
+        {STEPS.map((x) => (
           <li key={x.t} className="land-step">
             <h3>{x.t}</h3>
             <p>{x.d}</p>
           </li>
         ))}
       </ol>
-
-      <section className="land-close enter-slow">
-        <h2>Start with four quiet facts</h2>
-        <p>Name, date, time, place. Astrology words with a dotted underline explain themselves when you hover or tap them.</p>
-        <button type="button" className="btn" onClick={onBegin}>
-          Begin a reading
-        </button>
-      </section>
     </main>
   );
 }

@@ -94,14 +94,19 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token) return null;
   const session = await verifySession(token);
   if (!session) return null;
-  const doc = await findUserById(session.id);
-  if (!doc) return session;
-  return {
-    id: doc._id.toString(),
-    email: doc.email,
-    name: doc.name,
-    plan: normalizePlan(doc.plan),
-  };
+  try {
+    const doc = await findUserById(session.id);
+    if (!doc) return session;
+    return {
+      id: doc._id.toString(),
+      email: doc.email,
+      name: doc.name,
+      plan: normalizePlan(doc.plan),
+    };
+  } catch {
+    // Mongo down or unreachable — keep JWT session so the app can boot.
+    return session;
+  }
 }
 
 /** Returns the signed-in user or a 401 Response. */
