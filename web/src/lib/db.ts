@@ -23,6 +23,7 @@ function connect() {
       db.collection("llm_usage").createIndex({ userId: 1, createdAt: -1 }),
       db.collection("llm_usage").createIndex({ readingId: 1, createdAt: -1 }),
       db.collection("llm_usage").createIndex({ stage: 1, createdAt: -1 }),
+      db.collection("app_settings").createIndex({ _id: 1 }),
     ]).catch(() => {
       /* best-effort */
     });

@@ -10,11 +10,14 @@ type TopicPanel = "counsel" | "map" | "classical" | "forYou" | null;
 
 export default function ModulesPanel({
   r,
+  onUnlockHint,
+  onContinueToPast,
 }: {
   r: LoadedReading;
   onUnlockHint?: () => void;
   onContinueToPast?: () => void;
 }) {
+  const showFullTease = !r.canAccessPaid;
   const modulesById = useMemo(() => {
     const m = new Map<string, ReadingModule>();
     for (const mod of r.modules ?? []) m.set(mod.id, mod);
@@ -305,6 +308,19 @@ export default function ModulesPanel({
                 </div>
               )}
             </footer>
+            {showFullTease ? (
+              <p className="atlas-tease muted text-[13px]">
+                More with the full reading —{" "}
+                <button
+                  type="button"
+                  className="linkbtn"
+                  onClick={() => (onContinueToPast ? onContinueToPast() : onUnlockHint?.())}
+                >
+                  past-check and Reports
+                </button>
+                .
+              </p>
+            ) : null}
           </article>
         </div>
       )}

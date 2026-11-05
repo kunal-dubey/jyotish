@@ -20,6 +20,8 @@ const PATH: {
   id: Path;
   title: string;
   short: string;
+  /** Compact label for narrow steppers (phones). */
+  mobileShort: string;
   purpose: string;
   doneAt: Status;
   openAt: Status;
@@ -29,6 +31,7 @@ const PATH: {
     id: "confirm",
     title: "Confirm the Birth Moment",
     short: "Birth Chart",
+    mobileShort: "Chart",
     purpose: "Check the chart against the recorded moment. Changing details later resets confirmation and past-check scores.",
     doneAt: "confirmed",
     openAt: "chart",
@@ -37,6 +40,7 @@ const PATH: {
     id: "today",
     title: "Chart Atlas",
     short: "Chart Atlas",
+    mobileShort: "Atlas",
     purpose: "Pick an area. Read the plain counsel. Open chart depth when you want it.",
     doneAt: "confirmed",
     openAt: "chart",
@@ -45,6 +49,7 @@ const PATH: {
     id: "past",
     title: "Past-Check",
     short: "Past-Check",
+    mobileShort: "Past",
     purpose: "Score chart statements against years you already lived — before any forecast.",
     doneAt: "scored",
     openAt: "confirmed",
@@ -52,8 +57,9 @@ const PATH: {
   },
   {
     id: "forward",
-    title: "Your reading",
-    short: "Reading",
+    title: "Reports",
+    short: "Reports",
+    mobileShort: "Reports",
     purpose: "Plain priorities after the past-check — then confidence, chart notes, and a living page.",
     doneAt: "protocol",
     openAt: "scored",
@@ -84,7 +90,7 @@ function stageNote(s: (typeof PATH)[number], reading: LoadedReading, paidOk: boo
     return "After the chart";
   }
   if (s.id === "past") {
-    if (!paidOk) return "After the past-check";
+    if (!paidOk) return "Full reading";
     if (reading.status === "scored" || at(reading.status) > at("scored")) {
       const claims = reading.outputs.claims ?? [];
       const points = claims.reduce((sum, c) => {
@@ -102,7 +108,7 @@ function stageNote(s: (typeof PATH)[number], reading: LoadedReading, paidOk: boo
     if (at(reading.status) >= at("confirmed")) return "After the atlas";
     return "After the chart";
   }
-  if (!paidOk || !open) return "After the past-check";
+  if (!paidOk || !open) return "Full reading";
   if (done || at(reading.status) >= at("reports")) return "Open";
   return "After the past-check";
 }
@@ -149,7 +155,7 @@ export default function ReadingView({ id }: { id: string }) {
 
   if (err) return <p className="note note-bad m-4 sm:m-8">{err}</p>;
   if (!r || !path) {
-    return <CosmicLoader size="lg" fullPage label="Casting your chart" />;
+    return <CosmicLoader size="lg" fullPage label="Loading your reading" />;
   }
 
   const reading = r;
@@ -248,6 +254,7 @@ export default function ReadingView({ id }: { id: string }) {
                       className={`stage${currentStep ? " is-current" : ""}${done ? " is-done" : ""}${locked ? " is-locked" : ""}`}
                       aria-current={currentStep ? "step" : undefined}
                       aria-disabled={locked || undefined}
+                      aria-label={`${s.short}: ${stageNote(s, reading, paidOk, done, open)}`}
                       onClick={() => selectPath(s)}
                     >
                       <span className="stage__mark" aria-hidden>
@@ -265,7 +272,10 @@ export default function ReadingView({ id }: { id: string }) {
                         )}
                       </span>
                       <span className="stage__text">
-                        <span className="stage__label">{s.short}</span>
+                        <span className="stage__label stage__label--full">{s.short}</span>
+                        <span className="stage__label stage__label--short" aria-hidden>
+                          {s.mobileShort}
+                        </span>
                         <span className="stage__note">{stageNote(s, reading, paidOk, done, open)}</span>
                       </span>
                     </button>
@@ -317,7 +327,13 @@ export default function ReadingView({ id }: { id: string }) {
 
           {path === "today" && (
             <>
-              <ModulesPanel r={r} />
+              <ModulesPanel
+                r={r}
+                onContinueToPast={() => go("past")}
+                onUnlockHint={() => {
+                  window.location.hash = "#/billing";
+                }}
+              />
               <div className="stage-foot">
                 <button type="button" className="btn btn--primary" onClick={() => go("past")}>
                   {paidOk ? "Continue Past-Check" : "See Past-Check"}
@@ -444,12 +460,17 @@ function PaidGate({ onToday }: { onToday: () => void }) {
     <div className="locked enter">
       <h3>The full reading sits behind this step</h3>
       <p>
-        Your atlas — life areas and one practice each — stays open. The past-check and the forward reading are part of
-        the full protocol: statements about years you already lived, scored before any forecast. Upgrade to unlock them.
+        Your atlas — life areas and one practice each — stays open on the free plan. The past-check and Reports are part
+        of the full protocol: statements about years you already lived, scored before any forecast.
       </p>
-      <button type="button" className="btn btn--primary" onClick={onToday}>
-        Back to the atlas
-      </button>
+      <div className="btn-row" style={{ marginTop: "1rem" }}>
+        <a href="#/billing" className="btn btn--primary">
+          See plans
+        </a>
+        <button type="button" className="btn btn--ghost" onClick={onToday}>
+          Back to the atlas
+        </button>
+      </div>
     </div>
   );
 }

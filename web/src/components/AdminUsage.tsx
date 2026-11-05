@@ -47,7 +47,11 @@ export default function AdminUsage() {
           <h1 className="serif text-[clamp(1.8rem,5vw,2.8rem)] leading-tight">LLM usage</h1>
           <p className="muted mt-3 text-[15px] leading-relaxed">
             Every protocol stage call is logged with model, tokens, and outcome. Readings still keep a per-stage
-            snapshot; this table is the durable ledger.
+            snapshot; this table is the durable ledger. Change which model powers each feature on{" "}
+            <a href="#/admin/models" className="underline">
+              Models
+            </a>
+            .
           </p>
           <label className="mt-5 flex items-center gap-2 text-[14px]">
             <span className="muted">Window</span>

@@ -10,12 +10,10 @@ import {
   FALLBACK_OPENROUTER_FREE,
   getLlmClient,
   hasLlmCredentials,
-  isFreeOpenRouterModel,
-  llmModelForFreeCounsel,
   llmOpenRouterFallbacks,
-  modelSupportsAnthropicExtras,
   usingOpenRouter,
 } from "./llm";
+import { resolveLlmCall } from "./llmResolve";
 import { recordLlmUsage } from "./llmUsage";
 import { buildFreeCounselPack, FREE_VARGA_KEYS, RIGHT_NOW_AREA_SPECS } from "./freeCounselPack";
 import { FreeCounselLlmSchema, type CounselTriple, type FreeCounsel } from "./freeCounselSchema";
@@ -93,10 +91,10 @@ async function callFreeCounselLlm(r: Reading): Promise<FreeCounsel> {
 
   const client = getLlmClient();
   const pack = buildFreeCounselPack(r.chart, r.intake);
-  const model = llmModelForFreeCounsel();
-  const anthropicExtras = modelSupportsAnthropicExtras(model);
-  // Sonnet 5.5 always thinks â€” leave headroom for JSON after reasoning.
-  const maxTokens = isFreeOpenRouterModel(model) ? 4000 : modelSupportsAnthropicExtras(model) ? 16000 : 6000;
+  const resolved = await resolveLlmCall("free_counsel");
+  const model = resolved.model;
+  const anthropicExtras = resolved.useAnthropicExtras;
+  const maxTokens = resolved.maxTokens;
 
   const routingExtras = usingOpenRouter()
     ? ({
@@ -128,7 +126,9 @@ Required shape: { "rightNow": { "areas": [ { "id", "ledBy", "today", "focus" } Ã
 Include every area id: ${RIGHT_NOW_AREA_SPECS.map((a) => a.id).join(", ")}.
 Include every varga key: ${FREE_VARGA_KEYS.join(", ")}.`;
 
-  console.info(`[free_counsel] start reading=${r.id} model=${model}`);
+  console.info(
+    `[free_counsel] start reading=${r.id} model=${model} maxTokens=${maxTokens} source=${resolved.source}`,
+  );
 
   let text = "";
   let usage = { input: 0, output: 0, cacheRead: 0 };
@@ -142,7 +142,7 @@ Include every varga key: ${FREE_VARGA_KEYS.join(", ")}.`;
       ...routingExtras,
       thinking: { type: "adaptive", display: "omitted" },
       output_config: {
-        effort: "low",
+        effort: resolved.effort,
         format: zodOutputFormat(FreeCounselLlmSchema),
       },
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
@@ -244,7 +244,7 @@ export async function ensureFreeCounsel(r: Reading): Promise<Reading> {
           userId: r.userId,
           readingId: r.id,
           stage: USAGE_STAGE,
-          model: llmModelForFreeCounsel(),
+          model: (await resolveLlmCall("free_counsel").catch(() => null))?.model ?? "unknown",
           provider: usingOpenRouter() ? "openrouter" : "anthropic",
           ok: false,
           error: message,

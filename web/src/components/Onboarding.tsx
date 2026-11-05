@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef, useState } from "react";
 import type { Intake, TimeSource } from "@/lib/types";
 import { api, type AuthUser, type LoadedReading } from "./api";
@@ -119,7 +119,7 @@ export default function Onboarding({
       <div className="app-shell" style={{ maxWidth: "36rem" }}>
         <div className="mb-10">
           <div className="flex items-center justify-between gap-4 mb-3">
-            <button type="button" className="btn btn-quiet text-[14px]" onClick={back}>
+            <button type="button" className="btn btn--quiet text-[14px]" onClick={back}>
               ← Back
             </button>
             <span className="text-[13px] muted">
@@ -158,7 +158,7 @@ export default function Onboarding({
                   onKeyDown={(e) => e.key === "Enter" && f.name?.trim() && go("birth")}
                 />
               </label>
-              <button type="button" className="btn btn-primary" disabled={!f.name?.trim()} onClick={() => go("birth")}>
+              <button type="button" className="btn btn--primary" disabled={!f.name?.trim()} onClick={() => go("birth")}>
                 Continue
               </button>
               {!signedIn && (
@@ -193,7 +193,7 @@ export default function Onboarding({
                 <TimeField value={f.time ?? ""} onChange={(v) => set("time", v)} autoFocus={false} />
                 {roundTime && (
                   <p className="note note-warn mt-3">
-                    Times ending in :00 or :30 are often rounded. You’ll say how the time is known next.
+                    Times ending in :00 or :30 are often rounded. You'll say how the time is known next.
                   </p>
                 )}
               </div>
@@ -270,7 +270,7 @@ export default function Onboarding({
                   )}
                 </div>
               )}
-              <button type="button" className="btn btn-primary" disabled={!birthReady} onClick={() => go("certainty")}>
+              <button type="button" className="btn btn--primary" disabled={!birthReady} onClick={() => go("certainty")}>
                 Continue
               </button>
             </StepShell>
@@ -302,12 +302,13 @@ export default function Onboarding({
               />
               {weakSource && (
                 <p className="note note-warn mb-6">
-                  We’ll treat this time as approximate and show how wide the rising window is.
+                  We'll treat this time as approximate and show how wide the rising window is. The chart still casts; some
+                  details are less sharp — you can edit birth later.
                 </p>
               )}
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn--primary"
                 disabled={!f.timeSource}
                 onClick={() => go("create")}
               >
@@ -319,7 +320,7 @@ export default function Onboarding({
           {step === "create" && (
             <StepShell
               title={`Ready for ${f.callName || f.name || "them"}`}
-              body="We’ll cast the chart next. You confirm the details before any forward writing."
+              body="We'll cast the chart next. You confirm the details before any forward writing."
             >
               <dl className="panel-soft meta-grid mb-8">
                 <dt>Name</dt>
@@ -336,7 +337,9 @@ export default function Onboarding({
 
               {!signedIn && (
                 <div className="grid gap-4 mb-8">
-                  <p className="text-[14px] muted">Save the reading with a quiet account.</p>
+                  <p className="text-[14px] muted">
+                    An account is required to cast and save this reading — so you can return without starting over.
+                  </p>
                   <label className="field">
                     <span>Email</span>
                     <input
@@ -370,7 +373,7 @@ export default function Onboarding({
                 </div>
               )}
 
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={compute}>
+              <button type="button" className="btn btn--primary" disabled={busy} onClick={compute}>
                 {busy ? "Computing…" : "Compute the chart"}
               </button>
             </StepShell>

@@ -110,6 +110,16 @@ Fits = 2, Partly = 1, No = 0. Claim count is whatever the generated report produ
 | Score review | `.score-choice` or `.seg` |
 | Notes | `.note`, `.note-warn`, `.note-bad` |
 
+## Journey rules (from UX improvement plan)
+
+- **Begin:** One intake path — Onboarding (`#/begin`). Account required to cast and save. Do not revive a thinner parallel dialog for primary CTAs.
+- **Stage names:** Birth Chart → Chart Atlas → Past-Check → **Reports** (keep vocabulary identical on Landing, Home, ReadingView).
+- **Chart confirm viewport:** Life language first (rising sign, place, time sharpness). Classical terms (nakshatra, pada, yogakaraka, etc.) live in Chart details / Practitioner — not the first aside.
+- **PaidGate:** Never “Upgrade” without a destination. Primary CTA → `#/billing`. Secondary → atlas.
+- **Billing (`#/billing`):** Plan compare; checkout when configured; honest “coming soon” when not. Free = chart + atlas; full = past-check + Reports (+ guidance / living page).
+- **Atlas tease:** At most one quiet line for free users (“More with the full reading”), not a promo strip.
+- **LLM waits:** Keep quiet StageRunner. Cancel is **client-only** (stop waiting); do not stack regenerates while `generating` is set. Errors: plain language + Retry; raw detail optional.
+
 ## Taste / house rules
 
 - No decorative eyebrows, violet accents, emoji chrome, or multi-layer shadows on resting chrome.

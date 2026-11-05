@@ -8,7 +8,10 @@
     "dev": "concurrently -n chart,web -c blue,magenta \"npm run chart\" \"npm run web\"",
     "stack": "docker compose up -d --build",
     "stack:down": "docker compose down",
-    "seed:users": "npm --prefix web run seed:users"
+    "seed:users": "npm --prefix web run seed:users",
+    "models:verify": "npm --prefix web run models:verify",
+    "test:e2e": "npm --prefix web run test:e2e",
+    "test:e2e:models": "npm --prefix web run test:e2e:models"
   },
   "devDependencies": {
     "concurrently": "^9.2.0"

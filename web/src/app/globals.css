@@ -388,6 +388,19 @@ details.disclose.chart-only { display: block !important; }
   padding: clamp(28px, 4vw, 48px) 0 clamp(36px, 5vw, 56px);
 }
 .land-hero__copy { max-width: 34rem; }
+.land-hero__brand {
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: clamp(1.35rem, 3.5vw, 1.75rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0 0 0.35rem;
+}
+.atlas-tease {
+  margin: 0.75rem 0 0;
+  padding: 0 0.15rem;
+  line-height: 1.45;
+}
 .land-hero__title {
   font-size: clamp(32px, 4.2vw, 52px); font-weight: 450; line-height: 1.05; letter-spacing: -.035em;
 }
@@ -497,7 +510,8 @@ dialog.dialog { margin: auto; }
 }
 @media (max-width: 767px) {
   .land-hero { padding: 20px 0 28px; }
-  main .btn-primary { width: 100%; }
+  main .btn-primary,
+  main .btn--primary { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .land-step { transition: none; }

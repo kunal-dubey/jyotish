@@ -83,6 +83,23 @@ function quietProgressPct(thinkingLen: number, textLen: number, elapsedSec: numb
   return Math.min(94, Math.max(timePct, milestone));
 }
 
+function humanizeStageError(raw: string): { plain: string; detail: string } {
+  const m = raw.toLowerCase();
+  if (m.includes("rate limit") || m.includes("429") || m.includes("at capacity")) {
+    return { plain: "The reading service is busy. Wait a minute and try again.", detail: raw };
+  }
+  if (m.includes("auth") || m.includes("api key") || m.includes("missing or invalid")) {
+    return { plain: "The reading service could not authenticate. Try again later.", detail: raw };
+  }
+  if (m.includes("no claims") || m.includes("without numbered claims") || m.includes("empty text")) {
+    return { plain: "Nothing usable came back. You can generate again.", detail: raw };
+  }
+  if (m.includes("failed to fetch") || m.includes("network") || m.includes("connection closed")) {
+    return { plain: "Connection dropped. Check your network and retry.", detail: raw };
+  }
+  return { plain: "Something went wrong while generating. You can try again.", detail: raw };
+}
+
 const StageRunner = forwardRef<
   StageRunnerHandle,
   {
@@ -104,6 +121,8 @@ const StageRunner = forwardRef<
   const [thinking, setThinking] = useState("");
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [errDetail, setErrDetail] = useState<string | null>(null);
+  const [showErrDetail, setShowErrDetail] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [barPct, setBarPct] = useState(8);
   const pending = useRef({ thinking: "", text: "" });
@@ -112,6 +131,22 @@ const StageRunner = forwardRef<
   const maxBar = useRef(8);
   const abortRef = useRef<AbortController | null>(null);
   const recoveredRef = useRef(false);
+  const clientStoppedRef = useRef(false);
+
+  function setHumanError(raw: string) {
+    const h = humanizeStageError(raw);
+    setErr(h.plain);
+    setErrDetail(h.detail !== h.plain ? h.detail : null);
+    setShowErrDetail(false);
+  }
+
+  /** Client-only stop: abort the browser wait so the user can leave; server may finish. */
+  function stopClientWait() {
+    clientStoppedRef.current = true;
+    abortRef.current?.abort();
+    setRunning(false);
+    startedAt.current = 0;
+  }
 
   const busyElsewhere = !!r.generating && r.generating !== stage && !running;
   const generatingHere = running || r.generating === stage;
@@ -183,12 +218,13 @@ const StageRunner = forwardRef<
 
   async function go() {
     setErr(null);
+    setErrDetail(null);
     if (has) {
       if (downstream && !confirm("Regenerating this discards every later stage. Continue?")) return;
       try {
         onReading(await api.patch(r.id, { action: "reset", to: SHAPE[stage].resetTo }));
       } catch (e) {
-        return setErr((e as Error).message);
+        return setHumanError((e as Error).message);
       }
     }
     pending.current = { thinking: "", text: "" };
@@ -199,6 +235,7 @@ const StageRunner = forwardRef<
     setBarPct(8);
     startedAt.current = Date.now();
     recoveredRef.current = false;
+    clientStoppedRef.current = false;
     setRunning(true);
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -217,7 +254,7 @@ const StageRunner = forwardRef<
             schedule();
           },
           onDone: (next) => {
-            if (recoveredRef.current) return;
+            if (recoveredRef.current || clientStoppedRef.current) return;
             recoveredRef.current = true;
             maxBar.current = 100;
             setBarPct(100);
@@ -226,8 +263,8 @@ const StageRunner = forwardRef<
             onReading(next);
           },
           onError: (m) => {
-            if (recoveredRef.current || ac.signal.aborted) return;
-            setErr(m);
+            if (recoveredRef.current || clientStoppedRef.current || ac.signal.aborted) return;
+            setHumanError(m);
             setRunning(false);
             startedAt.current = 0;
           },
@@ -235,7 +272,9 @@ const StageRunner = forwardRef<
         ac.signal,
       );
     } catch (e) {
-      if (!ac.signal.aborted && !recoveredRef.current) setErr((e as Error).message);
+      if (!ac.signal.aborted && !recoveredRef.current && !clientStoppedRef.current) {
+        setHumanError((e as Error).message);
+      }
     } finally {
       setRunning(false);
       startedAt.current = 0;
@@ -268,7 +307,20 @@ const StageRunner = forwardRef<
         </div>
       )}
 
-      {err && <p className="note note-bad">{err}</p>}
+      {err && (
+        <div className="grid gap-2">
+          <p className="note note-bad">{err}</p>
+          {errDetail ? (
+            <button type="button" className="linkbtn text-[13px]" onClick={() => setShowErrDetail((v) => !v)}>
+              {showErrDetail ? "Hide details" : "Details"}
+            </button>
+          ) : null}
+          {showErrDetail && errDetail ? <p className="muted text-[12px]">{errDetail}</p> : null}
+          <button type="button" className="btn btn--ghost btn--sm w-full sm:w-auto" onClick={go} disabled={busyElsewhere}>
+            Retry
+          </button>
+        </div>
+      )}
 
       {generatingHere && quiet && (
         <div className="stage-wait enter" role="status" aria-live="polite" aria-busy="true">
@@ -305,6 +357,11 @@ const StageRunner = forwardRef<
           <div className="stage-wait-bar" aria-hidden>
             <div className="stage-wait-bar-fill" style={{ width: `${barPct}%` }} />
           </div>
+          {running ? (
+            <button type="button" className="btn btn--ghost btn--sm mt-3" onClick={stopClientWait}>
+              Stop waiting
+            </button>
+          ) : null}
         </div>
       )}
 
@@ -316,6 +373,11 @@ const StageRunner = forwardRef<
           {stage === "protocol" && text && (
             <p className="muted text-[13px]">Composing the protocol ({Math.round(text.length / 100) * 100}+ characters).</p>
           )}
+          {running ? (
+            <button type="button" className="btn btn--ghost btn--sm w-full sm:w-auto" onClick={stopClientWait}>
+              Stop waiting
+            </button>
+          ) : null}
         </div>
       )}
 

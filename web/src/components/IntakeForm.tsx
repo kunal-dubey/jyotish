@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef, useState } from "react";
 import type { Intake, TimeSource } from "@/lib/types";
 import { api, type LoadedReading } from "./api";
@@ -86,8 +86,8 @@ export default function IntakeForm({
             {initial ? "Correct the birth data" : "Birth details"}
           </h1>
           <p className="muted mt-4 max-w-[26rem] text-[14.5px] sm:text-[15px]">
-            Four things are required. The time matters most: the rising sign can change in a few minutes, and a wrong
-            time zone offset looks exactly like a wrong birth time.
+            Name, date, time, and place. If the time is approximate, we still cast the chart — some details are less
+            sharp, and you can edit later. A wrong clock offset can look like a wrong birth time.
           </p>
         </div>
 
@@ -144,8 +144,8 @@ export default function IntakeForm({
             {(weakSource || (roundTime && f.timeSource !== "certificate" && f.timeSource !== "hospital_record")) && (
               <p className="note note-warn mt-2">
                 {roundTime ? "A time ending in :00 or :30 is often rounded. " : ""}
-                The analysis will carry an error bar. The next screen shows how many minutes the rising sign survives in
-                each direction.
+                We'll treat this as approximate and show how wide the rising window is. The chart still casts; you can
+                edit birth later if you get a sharper time.
               </p>
             )}
           </fieldset>
@@ -232,7 +232,7 @@ export default function IntakeForm({
 
           {err && <p className="note note-bad">{err}</p>}
           <div className="btn-row btn-row-stack sm:flex-row">
-            <button className="btn btn-primary" disabled={busy}>
+            <button className="btn btn--primary" disabled={busy}>
               {busy ? "Computing…" : initial ? "Recompute the chart" : "Compute the chart"}
             </button>
             {onCancel && (

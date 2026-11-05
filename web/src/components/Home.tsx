@@ -22,13 +22,13 @@ const NEXT_DESC: Record<string, string> = {
   confirmed: "Twelve areas of life in plain language. Open any one to see why it reads that way.",
   past_check: "Statements about the past, scored blind. The reports open once you submit.",
   scored: "Reports, guidance, and a living page sit behind the past-check score.",
-  reports: "Forward reports are in progress.",
+  reports: "Reports are in progress.",
   guidance: "Decade guidance is ready to continue.",
   protocol: "The living page is ready.",
 };
 
 function progressText(status: string) {
-  if (status === "protocol" || status === "guidance" || status === "reports") return "Reading open";
+  if (status === "protocol" || status === "guidance" || status === "reports") return "Reports open";
   if (status === "scored") return "Now: Reports";
   if (status === "past_check") return "Now: Past-Check";
   if (status === "confirmed") return "Now: Chart Atlas";
@@ -273,7 +273,7 @@ export default function Home({ onNewReading }: { onNewReading?: () => void }) {
                   </div>
                 </article>
 
-                <div className="library__help">
+                <div className="library__help library__help--secondary">
                   <details className="disclose">
                     <summary>
                       How a Reading Works
@@ -320,24 +320,29 @@ export default function Home({ onNewReading }: { onNewReading?: () => void }) {
 
           <aside className="aside aside--fit" aria-label="Help">
             {hero && (
-              <div className="aside__block">
-                <h2>Words to Know</h2>
-                <p className="small">Tap for meaning in {hero.name}&apos;s chart. Click to keep open.</p>
-                <ul className="words">
-                  {(["lagna", "house", "dasha", "mahadasha", "antardasha", "nakshatra"] as const).map((id) => {
-                    const w = CORE_WORDS.find((x) => x.id === id);
-                    if (!w) return null;
-                    return (
-                      <li key={w.id}>
-                        <TermLink termId={w.id} ctx={chartCtx}>
-                          {w.label}
-                        </TermLink>
-                        <span className="small">{w.short}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              <details className="disclose aside__block aside__glossary">
+                <summary>
+                  Words to Know
+                  <span aria-hidden>▾</span>
+                </summary>
+                <div className="disclose__body">
+                  <p className="small">Tap for meaning in {hero.name}&apos;s chart. Click to keep open.</p>
+                  <ul className="words">
+                    {(["lagna", "house", "dasha", "mahadasha", "antardasha", "nakshatra"] as const).map((id) => {
+                      const w = CORE_WORDS.find((x) => x.id === id);
+                      if (!w) return null;
+                      return (
+                        <li key={w.id}>
+                          <TermLink termId={w.id} ctx={chartCtx}>
+                            {w.label}
+                          </TermLink>
+                          <span className="small">{w.short}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </details>
             )}
           </aside>
         </div>

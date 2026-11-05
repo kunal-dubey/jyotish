@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import AdminModels from "./AdminModels";
 import AdminUsage from "./AdminUsage";
 import AuthScreen from "./AuthScreen";
+import BillingPage from "./BillingPage";
 import CosmicLoader from "./CosmicLoader";
 import Home from "./Home";
 import Landing from "./Landing";
-import NewReadingDialog from "./NewReadingDialog";
 import Onboarding from "./Onboarding";
 import ReadingView from "./ReadingView";
 import { api, type AuthUser } from "./api";
@@ -14,7 +15,9 @@ type Route =
   | { name: "home" }
   | { name: "begin" }
   | { name: "auth" }
+  | { name: "billing" }
   | { name: "admin-usage" }
+  | { name: "admin-models" }
   | { name: "reading"; id: string };
 
 function parse(hash: string): Route {
@@ -22,6 +25,8 @@ function parse(hash: string): Route {
   if (m) return { name: "reading", id: m[1] };
   if (hash.startsWith("#/begin") || hash.startsWith("#/new")) return { name: "begin" };
   if (hash.startsWith("#/auth")) return { name: "auth" };
+  if (hash.startsWith("#/billing")) return { name: "billing" };
+  if (hash.startsWith("#/admin/models")) return { name: "admin-models" };
   if (hash.startsWith("#/admin/usage")) return { name: "admin-usage" };
   return { name: "home" };
 }
@@ -37,17 +42,11 @@ function BrandMark() {
 
 function Shell() {
   const [route, setRoute] = useState<Route>({ name: "home" });
-  // null = signed out (or auth still resolving for public routes). undefined only while
-  // a protected route is waiting on /api/auth/me — never block the whole landing page.
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [newOpen, setNewOpen] = useState(false);
 
-  function openNewReading() {
-    setNewOpen(true);
-  }
-  function closeNewReading() {
-    setNewOpen(false);
+  function openBegin() {
+    window.location.hash = "#/begin";
   }
 
   useEffect(() => {
@@ -60,7 +59,6 @@ function Shell() {
   useEffect(() => {
     let cancelled = false;
     const ctrl = new AbortController();
-    // Generous timeout — abort must not fake a sign-out while Mongo is slow.
     const timer = window.setTimeout(() => ctrl.abort(), 12_000);
 
     async function restoreSession() {
@@ -72,14 +70,12 @@ function Shell() {
           return;
         }
         if (!res.ok) {
-          // Transient server error — keep signed-out UI but don't treat as logout event.
           setUser(null);
           return;
         }
         setUser((await res.json()) as AuthUser);
       } catch (err) {
         if (cancelled) return;
-        // Abort / network: retry once without abort so a slow Mongo boot can still restore.
         const aborted = err instanceof DOMException && err.name === "AbortError";
         if (aborted) {
           try {
@@ -109,10 +105,14 @@ function Shell() {
 
   useEffect(() => {
     if (!authChecked) return;
-    if (!user && (route.name === "reading" || route.name === "admin-usage")) {
+    if (!user && (route.name === "reading" || route.name === "admin-usage" || route.name === "admin-models")) {
       window.location.hash = "#/auth";
     }
-    if (user && route.name === "admin-usage" && user.plan !== "admin") {
+    if (
+      user &&
+      (route.name === "admin-usage" || route.name === "admin-models") &&
+      user.plan !== "admin"
+    ) {
       window.location.hash = "#/";
     }
   }, [authChecked, user, route]);
@@ -123,18 +123,27 @@ function Shell() {
     window.location.hash = "#/";
   }
 
-  // Brief chart-wheel boot while session resolves. Auth aborts at 3s so this
-  // can never stick; public begin/auth routes paint without waiting.
-  if (!authChecked && (route.name === "home" || route.name === "reading" || route.name === "admin-usage")) {
+  if (
+    !authChecked &&
+    (route.name === "home" ||
+      route.name === "reading" ||
+      route.name === "billing" ||
+      route.name === "admin-usage" ||
+      route.name === "admin-models")
+  ) {
     return <CosmicLoader size="lg" fullPage label="Loading" />;
   }
 
-  const showAuth = !user && (route.name === "auth" || route.name === "reading" || route.name === "admin-usage");
+  const showAuth =
+    !user &&
+    (route.name === "auth" || route.name === "reading" || route.name === "admin-usage" || route.name === "admin-models");
   const showLanding = !user && route.name === "home";
   const showBegin = route.name === "begin";
   const showReading = !!user && route.name === "reading";
   const showHome = !!user && route.name === "home";
+  const showBilling = route.name === "billing";
   const showAdminUsage = !!user && user.plan === "admin" && route.name === "admin-usage";
+  const showAdminModels = !!user && user.plan === "admin" && route.name === "admin-models";
 
   return (
     <div className="min-h-dvh">
@@ -150,10 +159,20 @@ function Shell() {
           {user ? (
             <div className="topbar__actions">
               <span className="account">{user.email}</span>
-              {user.plan === "admin" && (
-                <a href="#/admin/usage" className="btn btn--ghost btn--sm topbar__usage">
-                  Usage
+              {user.plan !== "paid" && user.plan !== "admin" ? (
+                <a href="#/billing" className="btn btn--ghost btn--sm">
+                  Plans
                 </a>
+              ) : null}
+              {user.plan === "admin" && (
+                <>
+                  <a href="#/admin/models" className="btn btn--ghost btn--sm topbar__usage">
+                    Models
+                  </a>
+                  <a href="#/admin/usage" className="btn btn--ghost btn--sm topbar__usage">
+                    Usage
+                  </a>
+                </>
               )}
               {process.env.NODE_ENV !== "production" ? (
                 <select
@@ -175,7 +194,7 @@ function Shell() {
                   <option value="admin">admin</option>
                 </select>
               ) : null}
-              <button type="button" className="btn btn--tinted btn--sm" onClick={openNewReading}>
+              <button type="button" className="btn btn--tinted btn--sm" onClick={openBegin}>
                 <span className="topbar__new-full">+ New Reading</span>
                 <span className="topbar__new-short">+ New</span>
               </button>
@@ -185,7 +204,7 @@ function Shell() {
             </div>
           ) : (
             <div className="topbar__actions">
-              <button type="button" className="btn btn--tinted btn--sm" onClick={openNewReading}>
+              <button type="button" className="btn btn--tinted btn--sm" onClick={openBegin}>
                 Begin
               </button>
               {route.name !== "auth" && (
@@ -199,10 +218,7 @@ function Shell() {
       </header>
 
       {showLanding && (
-        <Landing
-          onSignIn={() => (window.location.hash = "#/auth")}
-          onBegin={openNewReading}
-        />
+        <Landing onSignIn={() => (window.location.hash = "#/auth")} onBegin={openBegin} />
       )}
       {showAuth && (
         <AuthScreen
@@ -219,26 +235,21 @@ function Shell() {
           onCreated={(r) => (window.location.hash = `#/r/${r.id}`)}
         />
       )}
-      {showHome && <Home onNewReading={openNewReading} />}
+      {showHome && <Home onNewReading={openBegin} />}
+      {showBilling && (
+        <BillingPage
+          user={user}
+          onUser={setUser}
+          onSignIn={() => (window.location.hash = "#/auth")}
+        />
+      )}
       {showAdminUsage && <AdminUsage />}
+      {showAdminModels && <AdminModels />}
       {showReading && route.name === "reading" && <ReadingView key={route.id} id={route.id} />}
 
       <footer className="site-foot">
         <p>Prototype. Sample chart and interpretation copy, not medical, financial or legal advice.</p>
       </footer>
-
-      {newOpen ? (
-        <NewReadingDialog
-          open
-          user={user ?? null}
-          onAuthed={setUser}
-          onCreated={(r) => {
-            closeNewReading();
-            window.location.hash = `#/r/${r.id}`;
-          }}
-          onClose={closeNewReading}
-        />
-      ) : null}
     </div>
   );
 }

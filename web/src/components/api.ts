@@ -52,6 +52,67 @@ export type LlmUsageReport = {
   }[];
 };
 
+export type LlmModelsAdminPayload = {
+  provider: "openrouter" | "anthropic";
+  catalog: {
+    id: string;
+    label: string;
+    blurb: string;
+    openRouterId: string;
+    directAnthropicId?: string;
+    transportId: string;
+    recommendedFor: string[];
+    defaults: Record<string, unknown>;
+    byFeature: Record<string, unknown>;
+    override: {
+      maxTokens?: number;
+      freeMaxTokens?: number;
+      effort?: string;
+      anthropicExtras?: boolean | "auto";
+      verifiedStrategy?: string;
+      verifiedAt?: string;
+      lastError?: string;
+    } | null;
+  }[];
+  features: Record<
+    string,
+    {
+      id: string;
+      label: string;
+      description: string;
+      assignment: { modelId: string; modelString?: string } | null;
+      resolvedModel: string;
+      resolvedCatalogId: string | null;
+      source: "settings" | "env" | "default";
+    }
+  >;
+  settings: {
+    updatedAt: string;
+    updatedBy?: string;
+    modelOverrides: Record<string, unknown>;
+  };
+};
+
+export type LlmProbeReport = {
+  results: {
+    model: string;
+    catalogId: string | null;
+    feature: string;
+    ok: boolean;
+    winningStrategy?: string;
+    attempts: {
+      strategy: string;
+      ok: boolean;
+      error?: string;
+      stopReason?: string | null;
+      textLen?: number;
+      outputTokens?: number;
+      latencyMs: number;
+    }[];
+  }[];
+  summary: { ok: number; failed: number };
+};
+
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
@@ -80,8 +141,32 @@ export const api = {
     fetch("/api/auth/plan", opts({ method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ plan }) })).then(
       (r) => json<AuthUser>(r),
     ),
+  createCheckout: (body?: { successUrl?: string; cancelUrl?: string }) =>
+    fetch("/api/billing/checkout", opts({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) })).then(
+      (r) => json<{ url: string; provider: string; sessionId?: string }>(r),
+    ),
   adminUsage: (days = 30) =>
     fetch(`/api/admin/usage?days=${days}`, opts()).then((r) => json<LlmUsageReport>(r)),
+  adminModels: () => fetch("/api/admin/models", opts()).then((r) => json<LlmModelsAdminPayload>(r)),
+  patchAdminModels: (body: {
+    features?: Partial<Record<string, { modelId: string; modelString?: string } | null>>;
+    modelOverrides?: Record<string, Record<string, unknown> | null>;
+  }) =>
+    fetch("/api/admin/models", opts({ method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(
+      (r) => json<LlmModelsAdminPayload>(r),
+    ),
+  probeAdminModels: (body: {
+    all?: boolean;
+    catalogId?: string;
+    model?: string;
+    feature?: string;
+    features?: string[];
+    catalogIds?: string[];
+    autofix?: boolean;
+  }) =>
+    fetch("/api/admin/models/probe", opts({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(
+      (r) => json<LlmProbeReport>(r),
+    ),
   list: () =>
     fetch("/api/readings", opts()).then((r) =>
       json<{ id: string; name: string; date: string; time?: string; place: string; lagna: string; status: string; updatedAt: string }[]>(r),

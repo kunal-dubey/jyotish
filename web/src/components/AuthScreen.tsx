@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { api, type AuthUser } from "./api";
 
@@ -9,6 +9,7 @@ export default function AuthScreen({ onAuthed }: { onAuthed: (u: AuthUser) => vo
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forgotNote, setForgotNote] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +36,7 @@ export default function AuthScreen({ onAuthed }: { onAuthed: (u: AuthUser) => vo
             {mode === "login" ? "Welcome back" : "Create an account"}
           </h1>
           <p className="muted" style={{ marginTop: -8 }}>
-            Readings stay with your account so you can return without starting over.
+            An account is required to cast and save a reading — so you can return without starting over.
           </p>
           <form onSubmit={submit} className="grid gap-4 mt-2">
             {mode === "register" && (
@@ -68,10 +69,26 @@ export default function AuthScreen({ onAuthed }: { onAuthed: (u: AuthUser) => vo
               />
             </label>
             {err && <p className="note note-bad">{err}</p>}
-            <button type="submit" className="btn btn-primary w-full" disabled={busy}>
+            <button type="submit" className="btn btn--primary w-full" disabled={busy}>
               {busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
             </button>
           </form>
+          {mode === "login" ? (
+            <p className="text-[13px] muted mt-3">
+              <button
+                type="button"
+                className="see-more"
+                onClick={() => setForgotNote((v) => !v)}
+              >
+                Forgot password?
+              </button>
+            </p>
+          ) : null}
+          {forgotNote ? (
+            <p className="note note-warn text-[13px]">
+              Email reset isn&apos;t available yet. Use a seeded test account, or create a new one.
+            </p>
+          ) : null}
           <p className="text-[14px] muted">
             {mode === "login" ? (
               <>

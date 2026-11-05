@@ -7,14 +7,12 @@ import {
   hasLlmCredentials,
   isFreeOpenRouterModel,
   llmAuthErrorHint,
-  llmEffortForStage,
-  llmModelForStage,
   llmOpenRouterFallbacks,
   llmRateLimitHint,
   modelRequiresAdaptiveThinking,
-  modelSupportsAnthropicExtras,
   usingOpenRouter,
 } from "./llm";
+import { resolveLlmCall } from "./llmResolve";
 import { ProtocolSchema } from "./protocolSchema";
 import {
   GUIDANCE_STAGE,
@@ -49,23 +47,6 @@ const STAGE_OUTPUT: Record<StageName, keyof Reading["outputs"]> = {
   reports: "reports",
   guidance: "guidance",
   protocol: "protocol",
-};
-
-/**
- * Per-stage generation knobs.
- * Claude 5.5 always thinks; reasoning tokens count against max_tokens. Effort must
- * leave headroom for visible text (especially past-check claims). Free/open models
- * skip Anthropic thinking; keep freeMaxTokens modest for Vercel's 300s wall.
- */
-const STAGE_LLM: Record<
-  StageName,
-  { effort: "low" | "medium" | "high"; maxTokens: number; freeMaxTokens: number }
-> = {
-  // Past: low effort + larger cap so claims survive mandatory Sonnet 5.5 thinking.
-  past: { effort: "low", maxTokens: 64000, freeMaxTokens: 12000 },
-  reports: { effort: "medium", maxTokens: 64000, freeMaxTokens: 16000 },
-  guidance: { effort: "medium", maxTokens: 48000, freeMaxTokens: 12000 },
-  protocol: { effort: "medium", maxTokens: 64000, freeMaxTokens: 16000 },
 };
 
 /** True when truncated reports still have enough structure to show in the UI. */
@@ -210,13 +191,14 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
       );
     client ??= getLlmClient();
     const isProtocol = stage === "protocol";
-    const knobs = STAGE_LLM[stage];
-    const model = llmModelForStage(stage);
-    const anthropicExtras = modelSupportsAnthropicExtras(model);
-    // Free endpoints: tighter cap so generation can finish before Vercel kills at 300s.
-    // Cheap paid (Gemini Flash Lite, etc.): use maxTokens — still far below Opus budgets.
-    const maxTokens = isFreeOpenRouterModel(model) ? knobs.freeMaxTokens : knobs.maxTokens;
-    console.info(`[stage] start reading=${r.id} stage=${stage} model=${model} maxTokens=${maxTokens}`);
+    const resolved = await resolveLlmCall(stage);
+    const model = resolved.model;
+    const anthropicExtras = resolved.useAnthropicExtras;
+    const maxTokens = resolved.maxTokens;
+    const effort = resolved.effort;
+    console.info(
+      `[stage] start reading=${r.id} stage=${stage} model=${model} maxTokens=${maxTokens} source=${resolved.source} catalog=${resolved.catalogId ?? "-"}`,
+    );
     // Anthropic accepts fallbacks: "default"; OpenRouter only accepts an array of { model }.
     // Omit Anthropic server-side fallback when routing via OpenRouter (provider failover still applies).
     // Direct Anthropic: server-side refusal fallback. OpenRouter: model list fallbacks (free → cheap paid).
@@ -236,11 +218,10 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
     });
 
     const content = stageContent(r, stage, { includeProtocolJsonSchema: isProtocol && !anthropicExtras });
-    const effort = llmEffortForStage(stage, knobs.effort);
     const mandatoryThinking = modelRequiresAdaptiveThinking(model);
 
     // Claude 5.5 always thinks (OpenRouter injects adaptive/high if we omit it).
-    // Older models: thinking only when OPENROUTER_THINKING=1 or direct Anthropic.
+    // Older models: thinking / structured outputs only when extras resolve on.
     const stream = anthropicExtras
       ? client.beta.messages.stream({
           model,
@@ -381,7 +362,7 @@ export async function runStage(r: Reading, stage: StageName, emit: (e: StageEven
     }
     emit({ type: "done", reading: await saveReading(r) });
   } catch (err) {
-    const model = llmModelForStage(stage);
+    const model = (await resolveLlmCall(stage).catch(() => null))?.model ?? stage;
     const message =
       err instanceof Anthropic.AuthenticationError
         ? llmAuthErrorHint()

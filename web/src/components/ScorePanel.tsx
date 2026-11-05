@@ -204,6 +204,22 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
     }
   }
 
+  async function redoPastCheck() {
+    if (
+      !confirm(
+        "Redo the past-check? This clears claims, scores, reports, guidance, and the living page, then you generate again.",
+      )
+    ) {
+      return;
+    }
+    setErr(null);
+    try {
+      onReading(await api.patch(r.id, { action: "reset", to: "confirmed" }));
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
   if (!claims.length || !claim) return null;
 
   const progressLabel =
@@ -337,9 +353,12 @@ export default function ScorePanel({ r, onReading }: { r: LoadedReading; onReadi
                   Save scores
                 </button>
               ) : null}
+              <button type="button" className="linkbtn" onClick={redoPastCheck}>
+                Redo past-check
+              </button>
               {locked ? (
                 <button type="button" className="linkbtn" onClick={resetPast}>
-                  Reset
+                  Reset scores
                 </button>
               ) : null}
             </div>

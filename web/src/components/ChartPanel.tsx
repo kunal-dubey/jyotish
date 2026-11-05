@@ -54,7 +54,13 @@ export default function ChartPanel({
         initial={r.intake}
         onCancel={() => setEditing(false)}
         onSubmitEdit={async (intake: Intake) => {
-          if (hasDownstream && !confirm("Changing birth data discards every report written so far. Continue?")) return;
+          if (
+            hasDownstream &&
+            !confirm(
+              "Changing birth data clears confirmation, past-check claims and scores, reports, guidance, and the living page. Continue?",
+            )
+          )
+            return;
           onReading(await api.patch(r.id, { action: "recompute", intake }));
           setEditing(false);
         }}
@@ -90,32 +96,30 @@ export default function ChartPanel({
               <h3 className="chart-hero__rising">{c.ascendant.sign} rising</h3>
               <div className="chart-hero__meta">
                 <p className="chart-hero__sub">
-                  {c.ascendant.deg} · {c.ascendant.nakshatra} pada {c.ascendant.pada}
+                  For {name} · {r.intake.date} · {r.intake.time}
                 </p>
-                <p className="chart-hero__sub">
-                  Ruled by {c.ascendant.lord}
-                  {c.yogakaraka.length ? ` · yogakaraka ${c.yogakaraka.join(", ")}` : ""}
+                <p className="chart-hero__sub muted">
+                  {r.intake.place.label}. This is the rising sign for that moment — confirm if it looks right before the
+                  atlas and past-check.
                 </p>
               </div>
             </div>
 
             <dl className="chart-hero__facts">
               <div className="chart-hero__fact">
-                <dt>Rising window</dt>
+                <dt>How sharp is the time?</dt>
                 <dd>
-                  {mins(lg.minutes_earlier_survives)} earlier · {mins(lg.minutes_later_survives)} later
+                  Rising stays the same about {mins(lg.minutes_earlier_survives)} earlier and{" "}
+                  {mins(lg.minutes_later_survives)} later
                 </dd>
               </div>
               <div className="chart-hero__fact">
-                <dt>Time offset</dt>
-                <dd>
-                  {c.time.utc_offset_str}
-                  <span className="muted"> · {c.time.offset_source}</span>
-                </dd>
+                <dt>Clock offset</dt>
+                <dd>{c.time.utc_offset_str}</dd>
               </div>
               <div className="chart-hero__fact">
-                <dt>Style</dt>
-                <dd>{style === "south" ? "South" : "North"} Indian · whole-sign</dd>
+                <dt>Chart style</dt>
+                <dd>{style === "south" ? "South" : "North"} Indian</dd>
               </div>
             </dl>
 
@@ -123,7 +127,8 @@ export default function ChartPanel({
               <div className="chart-hero__notes">
                 {c.sensitivity.time_critical && (
                   <p className="note note-warn">
-                    <strong>Time-sensitive.</strong> The rising sign changes within ten minutes of the recorded time.
+                    <strong>Time-sensitive.</strong> The rising sign changes within ten minutes of the recorded time. If
+                    the time is approximate, you can edit birth details later.
                   </p>
                 )}
                 {c.time.notes.slice(0, 1).map((n, k) => (
@@ -141,8 +146,13 @@ export default function ChartPanel({
             </button>
             {!confirmed && (
               <button type="button" className="btn btn--primary" onClick={confirmData} disabled={busy}>
-                Confirm Chart
+                Confirm this looks right
               </button>
+            )}
+            {!confirmed && (
+              <p className="muted text-[13px] w-full">
+                Confirm if this birth data looks right. You can edit later — editing may clear later stages.
+              </p>
             )}
             {err && <p className="note note-bad w-full">{err}</p>}
           </div>
@@ -166,8 +176,27 @@ export default function ChartPanel({
             </button>
           </div>
           <p className="dialog__lede">
-            Moment, sensitivity, planets, and periods. Edit birth from the rail if anything is wrong.
+            Classical placements and sensitivity. Edit birth from the rail if anything is wrong.
           </p>
+
+          <section className="dialog__section" aria-label="Rising">
+            <h3 className="dialog__section-title">Rising</h3>
+            <dl className="meta-grid">
+              <dt>Sign</dt>
+              <dd>
+                {c.ascendant.sign} {c.ascendant.deg}
+              </dd>
+              <dt>Nakshatra</dt>
+              <dd>
+                {c.ascendant.nakshatra} pada {c.ascendant.pada}
+              </dd>
+              <dt>Lord</dt>
+              <dd>
+                {c.ascendant.lord}
+                {c.yogakaraka.length ? ` · yogakaraka ${c.yogakaraka.join(", ")}` : ""}
+              </dd>
+            </dl>
+          </section>
 
           <section className="dialog__section" aria-label="Moment and settings">
             <h3 className="dialog__section-title">Moment & settings</h3>

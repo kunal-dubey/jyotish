@@ -208,7 +208,7 @@ export default function ForwardPanel({
     tab === "reading" ? lifeSectionLabel(s.title) : s.title.replace(/^Report\s*\d+:\s*/i, "");
 
   const pieceMenu = showPieces ? (
-    <nav ref={pieceRef} className="atlas-more atlas-crumb-menu" aria-label="Forward pieces">
+    <nav ref={pieceRef} className="atlas-more atlas-crumb-menu" aria-label="Reports sections">
       {PIECES.map((p) => (
         <button
           key={p.id}
@@ -250,7 +250,7 @@ export default function ForwardPanel({
               aria-haspopup="listbox"
               onClick={() => setShowPieces((v) => !v)}
             >
-              Forward
+              Reports
             </button>
             <span className="atlas-crumb__sep" aria-hidden>
               ›
@@ -269,10 +269,23 @@ export default function ForwardPanel({
             First the chart notes and confidence audit are written from your score — then your plain-language reading
             opens.
           </p>
-        ) : null}
+        ) : (
+          <p className="atlas-reader__watch">One step writes this section from your past-check score.</p>
+        )}
         {busyElsewhere ? (
           <p className="note note-warn">Another stage is generating ({r.generating}).</p>
-        ) : null}
+        ) : (
+          <footer className="atlas-reader__foot">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busyElsewhere}
+              onClick={() => runnerRef.current?.run()}
+            >
+              {generateLabel}
+            </button>
+          </footer>
+        )}
       </article>
     );
   } else if (!generating && tab === "protocol" && hasContent) {
@@ -287,7 +300,7 @@ export default function ForwardPanel({
               aria-haspopup="listbox"
               onClick={() => setShowPieces((v) => !v)}
             >
-              Forward
+              Reports
             </button>
             <span className="atlas-crumb__sep" aria-hidden>
               ›
@@ -343,7 +356,7 @@ export default function ForwardPanel({
               aria-haspopup="listbox"
               onClick={() => setShowPieces((v) => !v)}
             >
-              Forward
+              Reports
             </button>
             <span className="atlas-crumb__sep" aria-hidden>
               ›
@@ -357,9 +370,21 @@ export default function ForwardPanel({
           <h3 className="atlas-reader__title">Living page</h3>
           <p className="atlas-reader__practice">{piece.practice}</p>
         </header>
+        <p className="atlas-reader__watch">Build a keepable page from the guidance you already have.</p>
         {busyElsewhere ? (
           <p className="note note-warn">Another stage is generating ({r.generating}).</p>
-        ) : null}
+        ) : (
+          <footer className="atlas-reader__foot">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busyElsewhere}
+              onClick={() => runnerRef.current?.run()}
+            >
+              {generateLabel}
+            </button>
+          </footer>
+        )}
       </article>
     );
   } else if (!generating && section) {
@@ -518,7 +543,8 @@ export default function ForwardPanel({
     );
   }
 
-  const runnerClass = generating ? "past-wait enter" : !hasContent ? "forward-generate" : "stage-runner--silent";
+  // Idle Generate lives in the empty reader (one clear primary). StageRunner only for wait/errors.
+  const runnerClass = generating ? "past-wait enter" : "stage-runner--silent";
 
   return (
     <div className="forward-shell">
@@ -530,7 +556,7 @@ export default function ForwardPanel({
           stage={stage}
           output={runnerOutput}
           showOutput={false}
-          showIdleButton={!hasContent && !generating}
+          showIdleButton={false}
           label={generateLabel}
           onReading={onReading}
           onBusyChange={setRunnerBusy}
